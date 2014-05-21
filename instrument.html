@@ -1,0 +1,505 @@
+<script src="lib/qunit.js"></script>
+<link href="lib/qunit.css" rel="stylesheet">
+<script src="lib/jquery.js"></script>
+<script src="../jquery-turtle.js"></script>
+<body>
+<div id="qunit"></div>
+<script>
+function setupFakeAudioContext() {
+  window.AudioContext = (function() {
+    var interval = 1/16,
+        methodlog = [],
+        ocounts = {};
+    function makeLoggingMethod(oname, fname) {
+      return function() {
+        var mname = oname + '.' + fname;
+        methodlog.push(mname);
+      }
+    }
+    function makeLoggingObject(oname) {
+      if (!ocounts[oname]) {
+        ocounts[oname] = 0;
+      }
+      ocounts[oname] += 1;
+      oname += ocounts[oname];
+      return {
+        gain: {
+          setValueAtTime: function() {},
+          linearRampToValueAtTime: function() {},
+          setTargetAtTime: function() {},
+          cancelScheduledValues: function() {},
+          value: null
+        },
+        frequency: {
+          value: null
+        },
+        Q: {
+          value: null
+        },
+        connect: makeLoggingMethod(oname, 'connect'),
+        disconnect: makeLoggingMethod(oname, 'disconnect'),
+        start: makeLoggingMethod(oname, 'start'),
+        stop: makeLoggingMethod(oname, 'stop')
+      };
+    }
+    function makeCtor(oname) {
+      return function() {
+        return makeLoggingObject(oname);
+      };
+    }
+    function AudioContext() {
+      var ac = {
+        destination: null,
+        currentTime: 0,
+        createGain: makeCtor('gain'),
+        createDynamicsCompressor: makeCtor('dcn'),
+        createBiquadFilter: makeCtor('filter'),
+        createOscillator: makeCtor('osc')
+      };
+      function advance() {
+        ac.currentTime += interval;
+        setTimeout(advance, Math.floor(1000 * interval));
+      }
+      setTimeout(advance, Math.floor(1000 * interval));
+      return ac;
+    }
+    AudioContext.resetTestLog = function() {
+      methodlog.length = 0;
+      ocounts = {};
+    }
+    AudioContext.methodlog = methodlog;
+    return AudioContext;
+  })();
+}
+function setupFakeTimer(msLimit, whendone) {
+  if (!msLimit) msLimit = 60 * 60 * 1000;
+  if (!window.originalSetTimeout) {
+    window.originalSetTimeout = window.setTimeout;
+  }
+  var ost = window.originalSetTimeout;
+  var timeouts = [];
+  var now = 0;
+  var currentTimeout = 0;
+  function nextEvent() {
+    currentTimeout = null;
+    var minTime = Infinity, index = -1, fn;
+    for (var j = 0; j < timeouts.length; ++j) {
+      if (timeouts[j].time < minTime) {
+        minTime = timeouts[j].time;
+        index = j;
+      }
+    }
+    if (index >= 0) {
+      fn = timeouts[index].fn;
+      timeouts.splice(index, 1);
+      now = minTime;
+      if (now < msLimit) {
+        fn();
+      }
+    } else {
+      // No timeouts scheduled? Advance by a second to zap to the end.
+      now += 1000;
+    }
+    if (now < msLimit) {
+      currentTimeout = ost(nextEvent, 0);
+    } else {
+      if (whendone) { whendone(); }
+      window.setTimeout = ost;
+    }
+  }
+  window.setTimeout = function(fn, num) {
+    if (isNaN(num) || Math.floor(num) != num) {
+      console.trace('non-integer delay', num);
+    }
+    var when = now + Math.max(0, num);
+    if (!isNaN(when)) {
+      timeouts.push({time: when, fn: fn});
+      if (!currentTimeout) {
+        currentTimeout = ost(nextEvent, 0);
+      }
+    }
+  }
+  window.currentTick = function() { return now; }
+}
+// Apply a sort on the note log to canonicalize the order.
+function sortNoteLog(notes) {
+  notes.sort(function(astr, bstr) {
+    var a = astr.split('-'), b = bstr.split('-'),
+        at = Number(a[1]), bt = Number(b[1]);
+    if (at != bt) { return at - bt; }
+    if (a[0] < b[0]) { return -1; }
+    if (a[0] > b[0]) { return 1; }
+    return 0;
+  });
+}
+setupFakeTimer();
+setupFakeAudioContext();
+
+eval($.turtle());
+
+module("Test of the Instrument class.");
+asyncTest("Plays Stairway with an Instrument.", function() {
+  // reset methodlog
+  AudioContext.resetTestLog();
+  var ins = new Sprite(),
+      notelog = [];
+  ins.on('noteon', function(e) { notelog.push('on' + e.midi); });
+  ins.on('noteoff', function(e) { notelog.push('off' + e.midi); });
+  // Play 16 tones (13 beats) from stairway.
+  ins.play("F_Acf [gE]cAg [a_E]cAa [dD]");
+  ins.done(function() {
+    equal(AudioContext.methodlog[0], "gain1.connect");
+    // We should have hooked up, started, and stopped the 16th tone.
+    ok(AudioContext.methodlog.indexOf('osc16.connect') > 0);
+    ok(AudioContext.methodlog.indexOf('osc16.start') > 0);
+    ok(AudioContext.methodlog.indexOf('osc16.stop') > 0);
+    // And there should be no 17th tone.
+    ok(AudioContext.methodlog.indexOf('osc17.start') < 0);
+    // Now test that we got all the callbacks, in order.
+    deepEqual(notelog, [
+        "on65", "off65", "on68", "off68",
+        "on72", "off72", "on77", "off77",
+        "on79", "on64", "off79", "off64", // chord
+        "on72", "off72", "on68", "off68",
+        "on79", "off79",
+        "on80", "on63", "off80", "off63", // chord
+        "on72", "off72", "on68", "off68",
+        "on80", "off80",
+        "on74", "on62", "off74", "off62"  // chord
+    ]);
+    start();
+  });
+});
+
+asyncTest("Test tie timing.", function() {
+  AudioContext.resetTestLog();
+  var startTick = currentTick(),
+      ins = new Sprite(),
+      notelog = [];
+  ins.on('noteon', function(e) {
+    notelog.push('on' + e.midi + '-' + (currentTick() - startTick));
+  });
+  ins.on('noteoff', function(e) {
+    notelog.push('off' + e.midi + '-' + (currentTick() - startTick));
+  });
+  // Play a tied note.
+  ins.play({tempo:120},"C-C");
+  ins.done(function() {
+    equal(AudioContext.methodlog[0], "gain1.connect");
+    // One note should have sounded.
+    ok(AudioContext.methodlog.indexOf('osc1.connect') > 0);
+    ok(AudioContext.methodlog.indexOf('osc1.start') > 0);
+    ok(AudioContext.methodlog.indexOf('osc1.stop') > 0);
+    // But not a second note.
+    ok(AudioContext.methodlog.indexOf('osc2.start') < 0);
+    // Now test that we got all the callbacks, in order.
+    deepEqual(notelog, [            // Default tempo: 120 = 500ms beats.
+        "on60-0", "off60-1000",     // Full beat C4.
+    ]);
+    start();
+  });
+});
+
+asyncTest("Test staccato timing.", function() {
+  AudioContext.resetTestLog();
+  var startTick = currentTick(),
+      ins = new Sprite(),
+      notelog = [];
+  ins.on('noteon', function(e) {
+    notelog.push('on' + e.midi + '-' + (currentTick() - startTick));
+  });
+  ins.on('noteoff', function(e) {
+    notelog.push('off' + e.midi + '-' + (currentTick() - startTick));
+  });
+  // Play some staccato tones.
+  ins.play({tempo:120},"C.c.cC");
+  ins.done(function() {
+    equal(AudioContext.methodlog[0], "gain1.connect");
+    // We should have hooked up, started, and stopped the 4th tone.
+    ok(AudioContext.methodlog.indexOf('osc4.connect') > 0);
+    ok(AudioContext.methodlog.indexOf('osc4.start') > 0);
+    ok(AudioContext.methodlog.indexOf('osc4.stop') > 0);
+    // And there should be no 5th tone.
+    ok(AudioContext.methodlog.indexOf('osc5.start') < 0);
+    // Now test that we got all the callbacks, in order.
+    deepEqual(notelog, [            // Default tempo: 120 = 500ms beats.
+        "on60-0", "off60-500",      // Full beat C4.
+        "on72-500", "off72-562",    // Staccato C5.
+        "on72-1000", "off72-1062",  // Staccato C5.
+        "on60-1500", "off60-2000"   // Full beat C4 again.
+    ]);
+    start();
+  });
+});
+
+asyncTest("Test multiple voices with a Bach Minuet.", function() {
+  AudioContext.resetTestLog();
+  var startTick = currentTick(),
+      ins = new Sprite(),
+      notelog = [];
+  ins.on('noteon', function(e) {
+    notelog.push('on' + e.midi + '-' + (currentTick() - startTick));
+  });
+  ins.on('noteoff', function(e) {
+    notelog.push('off' + e.midi + '-' + (currentTick() - startTick));
+  });
+  // Play a few measures of a Bach Trio Minuet (BWV 929) with three voices.
+  ins.play(
+    "K:Gm\n" +                   // Key is G minor
+    "V:1\n" +
+    "d6|e2d2c2-|cBcAd2|\n" +
+    "V:2\n" +
+    "B6-|B4A2-|A2G2^F2|\n" +
+    "V:3\n" +
+    "G,DGFED|CB,CDEC|D2D,2D2|"
+  );
+  ins.done(function() {
+    equal(AudioContext.methodlog[0], "gain1.connect");
+    // We should have hooked up, started, and stopped the 27th tone.
+    ok(AudioContext.methodlog.indexOf('osc27.connect') > 0);
+    ok(AudioContext.methodlog.indexOf('osc27.start') > 0);
+    ok(AudioContext.methodlog.indexOf('osc27.stop') > 0);
+    // And there should be no 28th tone.
+    ok(AudioContext.methodlog.indexOf('osc28.start') < 0);
+    // Now test that we got all the callbacks, in order.
+    sortNoteLog(notelog);
+    deepEqual(notelog, [              // Default tempo: 120 = 500ms beats.
+        "on55-0", "on70-0", "on74-0", // Start all three voices, dBG,
+        "off55-500",                  // G, ends after one beat
+        "on62-500", "off62-1000",     // V3 only here:
+        "on67-1000", "off67-1500",
+        "on65-1500", "off65-2000",
+        "on63-2000", "off63-2500",
+        "on62-2500",
+        "off62-3000",                 // V1 ends their first note here.
+        "off74-3000",
+        "on60-3000",                  // All three voices start a note
+        "on75-3000",
+        "off60-3500",                 // V3 ends its C in one beat
+        "on58-3500",                  // V3 starts a B flat (G minor)
+        "off58-4000",                 // V3 ends its B flat
+        "off75-4000",                 // V1 ends its e flat in two beats
+        "on60-4000",                  // V3 starts a C
+        "on74-4000",                  // V1 starts its d
+        "off60-4500",                 // V3 ends its C
+        "on62-4500",                  // V3 starts its D
+        "off62-5000",                 // V3 ends its D
+        "off70-5000",                 // V2 ends its very long B flat (G minor)
+        "off74-5000",                 // V1 ends its d
+        "on63-5000",
+        "on69-5000",
+        "on72-5000",
+        "off63-5500",
+        "on60-5500",
+        "off60-6000",
+        "on62-6000",
+        "off72-6500",
+        "on70-6500",
+        "off62-7000",
+        "off69-7000",
+        "off70-7000",
+        "on50-7000",
+        "on67-7000",
+        "on72-7000",
+        "off72-7500",
+        "on69-7500",
+        "off50-8000",
+        "off67-8000",
+        "off69-8000",
+        "on62-8000",
+        "on66-8000",
+        "on74-8000",
+        "off62-8938",
+        "off66-8938",
+        "off74-8938"
+    ]);
+    start();
+  });
+});
+
+asyncTest("Test realtime Piano.", function() {
+  AudioContext.resetTestLog();
+  var startTick = currentTick(),
+      ins = new Piano(88),
+      notelog = [];
+  // Check the geometry of the piano.
+  equal(ins.width(), 663);
+  equal(ins.height(), 67);
+  // Track events
+  ins.on('noteon', function(e) {
+    notelog.push('on' + e.midi + '-' + (currentTick() - startTick));
+  });
+  ins.on('noteoff', function(e) {
+    notelog.push('off' + e.midi + '-' + (currentTick() - startTick));
+  });
+  ins.tone('C');
+  setTimeout(function() {
+    ins.tone('G');
+    ins.tone('E');
+    setTimeout(function() {
+      ins.tone('C');
+      setTimeout(function() {
+        ins.tone('G', 0);
+        setTimeout(function() {
+          ins.tone('C', false);
+          setTimeout(function() {
+            deepEqual(notelog,[
+              "on60-0",      // Start the C
+              "on67-500",    // Start the G
+              "on64-500",    // Start the E
+              "off60-1000",  // Important: signal this off first
+              "on60-1000",   // and then signal this on second.
+              "off67-1500",
+              "off60-2000",
+              "off64-10438"  // Release the E after 10 seconds.
+            ]);
+            start();
+          }, 10000);
+        }, 500);
+      }, 500);
+    }, 500);
+  }, 500);
+});
+
+
+asyncTest("Test full ABC notation with a Beethoven Sonata.", function() {
+  AudioContext.resetTestLog();
+  var startTick = currentTick(),
+      ins = new Piano(),
+      notelog = [];
+  ins.on('noteon', function(e) {
+    notelog.push('on' + e.midi + '-' + (currentTick() - startTick));
+  });
+  ins.on('noteoff', function(e) {
+    notelog.push('off' + e.midi + '-' + (currentTick() - startTick));
+  });
+  // Play a couple measures of a Beethoven piano sonata.
+  // The following song has lots of ABC notation including !markings!
+  // and % comments that are ignored.  It also has tempo markings,
+  // key signatures, and ABCv2-style voice notation.
+  var sonata =
+      "X:2\n" +
+      "T:8th Sonata for piano\n" +
+      "%%staves {1 2}\n" +
+      "C:L. van Beethoven\n" +
+      "M:C\n" +
+      "L:1/16\n" +
+      "Q:1/8=60\n" +
+      "F:http://richardrobinson.tunebook.org.uk/tune/6525\n" +
+      "K:Cm\n" +
+      "% .. even when there are a lot of notes\n" +
+      "[V:1]!fp![E,4G,4C4]- [E,3/G,3/C3/]!3![G,/C/]!4![G,3/=B,3/D3/]" +
+        "!5![G,/C/E/] ([=A,4C4E4]!4![=B,2D2])z2|!fp!!3![=B,4D4F4]- " +
+        "[B,3/D3/F3/][B,/D/F/][B,3/D3/G3/][B,/D/A/] " +
+        "([B,4D4A4]!3![C2E2G2])z2|\n" +
+      "[V:2][C,,4E,,4G,,4C,4]- [C,,3/E,,3/G,,3/C,3/]!2!E,/!3!D,3/!4!C,/ " +
+        "(!2!^F,4G,2)z _A,,|_A,4-A,3/!2!A,/!1!G,3/=F,/ E,4-E,2z2|\n"
+  ins.play(sonata);
+  ins.done(function() {
+    sortNoteLog(notelog);
+    deepEqual(notelog, [
+      "on36-0",
+      "on39-0",
+      "on43-0",
+      "on48-0",
+      "on51-0",
+      "on55-0",
+      "on60-0",
+      "off36-2750",
+      "off39-2750",
+      "off43-2750",
+      "off48-2750",
+      "off51-2750",
+      "off55-2750",
+      "off60-2750",
+      "on51-2750",
+      "on55-2750",
+      "on60-2750",
+      "off51-3000",
+      "off55-3000",
+      "off60-3000",
+      "on50-3000",
+      "on55-3000",
+      "on59-3000",
+      "on62-3000",
+      "off50-3750",
+      "off55-3750",
+      "off59-3750",
+      "off62-3750",
+      "on48-3750",
+      "on55-3750",
+      "on60-3750",
+      "on63-3750",
+      "off48-4000",
+      "off55-4000",
+      "off60-4000",
+      "off63-4000",
+      "on54-4000",
+      "on57-4000",
+      "on60-4000",
+      "on63-4000",
+      "off54-5975",
+      "off57-5975",
+      "off60-5975",
+      "off63-5975",
+      "on55-5975",
+      "on59-5975",
+      "on62-5975",
+      "off55-6975",
+      "off59-6975",
+      "off62-6975",
+      "on44-7475",
+      "off44-7975",
+      "on56-7975",
+      "on59-7975",
+      "on62-7975",
+      "on65-7975",
+      "off56-10700",
+      "off59-10700",
+      "off62-10700",
+      "off65-10700",
+      "on56-10700",
+      "on59-10700",
+      "on62-10700",
+      "on65-10700",
+      "off56-10950",
+      "off59-10950",
+      "off62-10950",
+      "off65-10950",
+      "on55-10950",
+      "on59-10950",
+      "on62-10950",
+      "on67-10950",
+      "off55-11700",
+      "off59-11700",
+      "off62-11700",
+      "off67-11700",
+      "on53-11700",
+      "on59-11700",
+      "on62-11700",
+      "on68-11700",
+      "off53-11950",
+      "off59-11950",
+      "off62-11950",
+      "off68-11950",
+      "on51-11950",
+      "on59-11950",
+      "on62-11950",
+      "on68-11950",
+      "off59-13925",
+      "off62-13925",
+      "off68-13925",
+      "on60-13925",
+      "on63-13925",
+      "on67-13925",
+      "off51-14925",
+      "off60-14925",
+      "off63-14925",
+      "off67-14925"
+    ]);
+    start();
+  });
+});
+
+</script>
+

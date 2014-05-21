@@ -1,0 +1,35 @@
+{
+  "name": "music.js",
+  "version": "2.3.6",
+  "description": "An ABC player and synthesizer for WebAudio.",
+  "main": "music.js",
+  "keywords": [
+    "music",
+    "synthesizer",
+    "sequencer"
+  ],
+  "scripts": {
+    "test": "grunt"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git://github.com/PencilCode/music.js.git"
+  },
+  "author": "David Bau",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/PencilCode/music.js/issues"
+  },
+  "homepage": "https://github.com/PencilCode/music.js",
+  "devDependencies": {
+    "grunt": "latest",
+    "grunt-bowercopy": "latest",
+    "grunt-cli": "latest",
+    "grunt-contrib-connect": "latest",
+    "grunt-contrib-uglify": "latest",
+    "grunt-contrib-qunit": "latest",
+    "grunt-contrib-watch": "latest",
+    "grunt-release": "latest",
+    "phantomjs": "latest"
+  }
+}
