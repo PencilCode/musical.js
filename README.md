@@ -6,7 +6,8 @@ music.js: a sequencing WebAudio synthesizer that supports ABC notation.
 Designed for use by jQuery-turtle.
 
 Can be used as a standalone script, a require.js AMD module, or as
-a node.js module.
+a node.js module.  Music.js has no dependencies other than the HTML5
+WebAudio API, and it minifies down to about 14K.
 
 API:
 
