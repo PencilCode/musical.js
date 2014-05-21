@@ -1,13 +1,15 @@
 music.js
 ============
 
-music.js: a sequencing WebAudio synthesizer that supports ABC notation.
+[![Build Status](https://travis-ci.org/PencilCode/music.js.png?branch=master)](https://travis-ci.org/PencilCode/music.js)
 
-Designed for use by jQuery-turtle.
+music.js: a sequencing WebAudio synthesizer that supports ABC notation.
 
 Can be used as a standalone script, a require.js AMD module, or as
 a node.js module.  Music.js has no dependencies other than the HTML5
 WebAudio API, and it minifies down to about 14K.
+
+Designed for use by jQuery-turtle.
 
 API:
 
@@ -31,6 +33,11 @@ API:
 
 * `instrument.play(abcnotation)` plays a song as expressed in ABC
   notation, as can be found on the web.  See examples below.
+
+If used as a require.js or node module, then Instrument will be
+a member of the package.  For example, after you do
+`music = require('music');` then you can
+`var ins = new music.Instrument();`.
 
 <pre>
 &lt;script src="music.js"&gt;&lt;/script&gt;
