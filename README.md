@@ -5,9 +5,12 @@ music.js: a sequencing WebAudio synthesizer that supports ABC notation.
 
 Designed for use by jQuery-turtle.
 
+Can be used as a standalone script, a require.js AMD module, or as
+a node.js module.
+
 API:
 
-* instrument = new Instrument([timbre]) makes an instrument. Timbre
+* `instrument = new Instrument([timbre])` makes an instrument. Timbre
   is optional and defaults to a boring square wave sound.  Timbre
   may be a WebAudio oscillator wave type ("square", "sine", etc),
   and it may also specify (as object properties or in a CSS-like
@@ -16,7 +19,7 @@ API:
   Timbre can be changed later using instrument.setTimbre.  See an
   example below.
 
-* instrument.tone(frequency [,volume, duration, delay, timbre])
+* `instrument.tone(frequency [,volume, duration, delay, timbre])`
   plays a single tone for a little while.  Frequency may be specified
   as a positive number (in Hz) or a negative integer (a midi note
   number), or a pitch string like '^C,' (ABC notation for a pitch).
@@ -25,46 +28,50 @@ API:
   and timbre defaults to null, which applies the instrument's default
   timbre.
 
-* instrument.play(abcnotation) plays a song as expressed in ABC
+* `instrument.play(abcnotation)` plays a song as expressed in ABC
   notation, as can be found on the web.  See examples below.
 
 <pre>
-piano = new Instrument();
+&lt;script src="music.js"&gt;&lt;/script&gt;
+
+&lt;script&gt;
+
+var inst = new Instrument();
 
 // Play a single tone immediately.  Tones may be also specified
 // numerically (in Hz), or with midi numbers (as negative integers).
-piano.tone('C')
+inst.tone('C')
 
 // Whenever we like, release the note.
 setTimeout(function() {
-  piano.tone('C', false);
+  inst.tone('C', false);
   firstsong();
-}, Math.random() * 1000);
+}, Math.random() * 10000);
 
 function firstsong() {
   // Play "Mary Had a Little Lamb"
-  piano.play("AGFG|AAA2|GGG2|AAA2|AGFG|AAAA|GGAG|F4|", whendone)
+  inst.play({tempo:200},"AGFG|AAA2|GGG2|AAA2|AGFG|AAAA|GGAG|F4|", whendone)
 }
 
 // Do this after Mary is done.
 function whendone() {
   // Play "Stairway", which picks out a few chords.
-  piano.play("F^Gcf|[gE]c^G|g[^g^D]c|^G^g[dD]|" +
+  inst.play("F^Gcf|[gE]c^G|g[^g^D]c|^G^g[dD]|" +
              "^AFd|[^C=c]^GF|^G21/3c^GF|[G^DG,][F,F^G][^GFF,]2", whendone2);
-
+}
 
 // Do this after Stairway is done.
 function whendone2() {
-  // Change the piano to sound more like a piano.
-  piano.setTimbre("wave:sawtooth;gain:2;" +
+  // Change the inst to sound more like a inst.
+  inst.setTimbre("wave:sawtooth;gain:3;" +
       "attack:0.001;decay:0.4;sustain:0.005;release:0.1;" +
-      "cutoff:100;cutfollow:0.1;detune:1.0013;");
+      "cutoff:200;cutfollow:0.1;resonance:10;detune:1.0013;");
   // Then play a couple bars of a Beethoven Sonata, using ABC notation
   // clipped from the web.  Note support for chords, beats, accidentals,
   // key signatures, meter and tempo markings, ties, and so on.
-  piano.play(
+  inst.play(
     "X:2\n" +
-    "T:8th Sonata for piano\n" +
+    "T:8th Sonata for inst\n" +
     "%%staves {1 2}\n" +
     "C:L. van Beethoven\n" +
     "M:C\n" +
@@ -83,5 +90,6 @@ function whendone2() {
     "_A,4-A,3/!2!A,/!1!G,3/=F,/ E,4-E,2z2|\n"
   );
 }
+&lt;/script&gt;
 </pre>
 
