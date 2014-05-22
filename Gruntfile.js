@@ -56,7 +56,6 @@ module.exports = function(grunt) {
   grunt.loadNpmTasks('grunt-contrib-uglify');
   grunt.loadNpmTasks('grunt-contrib-qunit');
   grunt.loadNpmTasks('grunt-contrib-watch');
-  grunt.loadNpmTasks('grunt-sed');
 
   grunt.task.registerTask('test', 'Run unit tests, or just one test.',
   function(testname) {

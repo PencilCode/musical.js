@@ -1,0 +1,26 @@
+<p>This is a piano scale.
+
+<script src="../../musical.js"></script>
+
+<script>
+
+var inst = new Instrument();
+
+function scale() {
+  // Change the inst to sound more like a inst.
+  inst.setTimbre("wave:piano;");
+  inst.play({tempo:400},
+    "C,,, D,,, E,,, F,,, G,,, A,,, B,,," +
+    "C,, D,, E,, F,, G,, A,, B,," +
+    "C, D, E, F, G, A, B," +
+    "C D E F G A B" +
+    "c d e f g a b" +
+    "c' d' e' f' g' a' b'" +
+    "c'' d'' e'' f'' g'' a'' b''" +
+    "c'''");
+}
+
+scale();
+
+</script>
+

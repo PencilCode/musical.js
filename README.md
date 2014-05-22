@@ -11,7 +11,7 @@ synthesizer that supports
 musical.js can be used as a standalone script, a require.js AMD module, or
 as a node.js module.  This code has no dependencies other than the HTML5
 WebAudio API, and it
-[minifies down to about 14K](https://raw.githubusercontent.com/PencilCode/musical.js/master/musical.min.js).
+[minifies down to about 17K](https://raw.githubusercontent.com/PencilCode/musical.js/master/musical.min.js).
 
 Designed for use by
 [jQuery-turtle](https://github.com/PencilCode/jquery-turtle).
@@ -63,22 +63,23 @@ setTimeout(function() {
 
 function firstsong() {
   // Play "Mary Had a Little Lamb"
-  inst.play({tempo:200},"AGFG|AAA2|GGG2|AAA2|AGFG|AAAA|GGAG|F4|", whendone)
+  inst.play({tempo:200},"AGFG|AAA2|GGG2|AAA2|AGFG|AAAA|GGAG|F4|z4", whendone)
 }
 
 // Do this after Mary is done.
 function whendone() {
   // Play "Stairway", which picks out a few chords.
+  inst.setTimbre("wave:sawtooth;" +
+      "attack:0.005;decay:0.2;release:0.2;" +
+      "cutoff:350;cutfollow:0.2;resonance:3");
   inst.play("F^Gcf|[gE]c^G|g[^g^D]c|^G^g[dD]|" +
-             "^AFd|[^C=c]^GF|^G21/3c^GF|[G^DG,][F,F^G][^GFF,]2", whendone2);
+             "^AFd|[^C=c]^GF|^G21/3c^GF|[G^DG,][F,F^G][^GFF,]2z4", whendone2);
 }
 
 // Do this after Stairway is done.
 function whendone2() {
-  // Change the inst to sound more like a inst.
-  inst.setTimbre("wave:sawtooth;gain:3;" +
-      "attack:0.001;decay:0.4;sustain:0.005;release:0.1;" +
-      "cutoff:200;cutfollow:0.1;resonance:10;detune:1.0013;");
+  // Change the inst to sound more like a piano.
+  inst.setTimbre("wave:piano;detune:1.001");
   // Then play a couple bars of a Beethoven Sonata, using ABC notation
   // clipped from the web.  Note support for chords, beats, accidentals,
   // key signatures, meter and tempo markings, ties, and so on.
@@ -103,6 +104,7 @@ function whendone2() {
     "_A,4-A,3/!2!A,/!1!G,3/=F,/ E,4-E,2z2|\n"
   );
 }
+
 &lt;/script&gt;
 </pre>
 
