@@ -1,6 +1,6 @@
 {
   "name": "music.js",
-  "version": "2.3.6",
+  "version": "0.0.1",
   "description": "An ABC player and synthesizer for WebAudio.",
   "main": "music.js",
   "keywords": [
