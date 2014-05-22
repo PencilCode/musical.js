@@ -3,25 +3,27 @@ musical.js
 
 [![Build Status](https://travis-ci.org/PencilCode/musical.js.png?branch=master)](https://travis-ci.org/PencilCode/musical.js)
 
-musical.js: a sequencing
+musical.js: a tiny library with a sequencing
 [WebAudio](https://dvcs.w3.org/hg/audio/raw-file/tip/webaudio/specification.html)
 synthesizer that supports
 [ABC notation](http://abcnotation.com/).
 
+[Listen to a little demo here](https://rawgit.com/PencilCode/musical.js/master/test/demo/minuet.html).
 musical.js can be used as a standalone script, a require.js AMD module, or
 as a node.js module.  This code has no dependencies other than the HTML5
 WebAudio API, and it
 [minifies down to about 17K](https://raw.githubusercontent.com/PencilCode/musical.js/master/musical.min.js).
 
-Designed for use by
+Originally designed as part of
 [jQuery-turtle](https://github.com/PencilCode/jquery-turtle).
 
-API:
+Three main functions in the API:
 
 * `instrument = new Instrument([timbre])` makes an instrument. Timbre
   is optional and defaults to a boring square wave sound.  Timbre
   may be a WebAudio oscillator wave type ("square", "sine", etc),
-  and it may also specify (as object properties or in a CSS-like
+  or a "piano" wave shape that is coded in this libarary.
+  It may also specify (as object properties or in a CSS-like
   string) gain, attack, decay, sustain, release, cutoff, cutfollow,
   and detune; these allow basic subtractive analog synthesis.
   Timbre can be changed later using instrument.setTimbre.  See an
@@ -38,6 +40,12 @@ API:
 
 * `instrument.play(abcnotation)` plays a song as expressed in ABC
   notation, as can be found on the web.  See examples below.
+
+* There is also a `silence()` method and `getTimbre()` and `setTimbre()`
+  for changing an instrument's sound. To listen to sequenced
+  notes as they occur in realtime, listen to events with
+  `on('noteon', cb)` and `on('noteoff', cb)`.  The `instrument.off`
+  method unregisters a listener.
 
 If used as a require.js or node module, then Instrument will be
 a member of the package.  For example, after you do

@@ -1,122 +1,91 @@
-<p>This is a a minuet scale.
+<html>
+<head>
+<script src="../../musical.js"></script> <!-- defines Instrument class -->
+</head>
 
-<script src="../../musical.js"></script>
+<body style="font-family:Arial;padding:36px 20%;">
+<h2>Bach Minuet BvW 121, in C minor.</h2>
+
+<p>This web page is a demonstration of the use of musical.js
+with a plain script tag.  Here is the code for this page:</p>
+
+<pre style="background:skyblue"></pre>
 
 <script>
 
-var inst = new Instrument();
+// Select a timbre that sounds like a piano.
+var inst = new Instrument('piano;sustain:0.005;detune:1.001');
 
-function scale() {
-  // Change the inst to sound more like a inst.
-  inst.setTimbre("wave:piano;sustain:0.005;detune:1.0013;");
-  /*
-  inst.setTimbre("wave:sawtooth;gain:2;" +
-      "attack:0.001;decay:0.4;sustain:0.005;release:0.1;" +
-      "cutoff:200;cutfollow:0.1;resonance:10;detune:1.001;");
-  /*/
-  inst.play(
-    "X:3556\n" +
-    "T:Menuet\n" +
-    "T:(Minuet) BWV Anh. 121\n" +
-    "C:Johann Sebastian Bach?\n" +
-    "R:Minuet\n" +
-    "Z:Transcribed by Frank Nordberg - http://www.musicaviva.com\n" +
-    "F:http://abc.musicaviva.com/tunes/bach-johann-sebastian/bwva121/bwva121.abc\n" +
-    "V:1 Program 1 6 %Harpsichord\n" +
-    "V:2 Program 1 6 bass %Harpsichord\n" +
-    "M:3/4\n" +
-    "L:1/8\n" +
-    "Q:1/4=132\n" +
-    "K:Cm\n" +
-    "V:1\n" +
-    "c2c2d2|e2e2f2|g2g2a2|T^f4g2-|\n" +
-    "V:2\n" +
-    "C,4 z2|C,2C,2D,2|E,2E,2C,2|D,2C,2=B,,2|\n" +
-    "%\n" +
-    "V:1\n" +
-    "ga=f=ef2-|fg_ede2|c=Bc2d2|G6:|\n" +
-    "V:2\n" +
-    "_B,,4=A,,2|_A,,4G,,2|A,,4F,,2|G,,2G,F,E,D,:|\n" +
-    "%\n" +
-    "V:1\n" +
-    "|:G2G2A2|BAGAB2|C2=E2(3GAB|AGF4|\n" +
-    "V:2\n" +
-    "|:C,2-[C,2-=E,2][C,2F,2]|G,2=E,2C,2|=E,2C,2E,2|F,3G,F,_E,|\n" +
-    "%\n" +
-    "V:1\n" +
-    "F2F2G2|AGFGA2|B,2D2(3FGA|GFE4|\n" +
-    "V:2\n" +
-    "D,2-[D,2B,,2]E,2|F,2D,2C,2|D,2B,,2D,2|E,3F,E,D,|\n" +
-    "%\n" +
-    "V:1\n" +
-    "G2A2=A2|B2=B2c2|=B2c2d2|e2=e2f2|\n" +
-    "V:2\n" +
-    "C,2F,2E,2|D,2G,2E,2|D,2C,2=B,,2|C,2_B,,2=A,,2|\n" +
-    "%\n" +
-    "V:1\n" +
-    "d2_e2=e2|f2^f2g2|G2=fede|c6:|\n" +
-    "V:2\n" +
-    "=B,,2C,2_B,,2|=A,,2_A,,2G,,2|E,2F,2G,2|C,6:|\n" +
-    "W:\n" +
-    "W:\n" +
-    "W:  From Musica Viva - http://www.musicaviva.com\n" +
-    "W:  the Internet center for free sheet music downloads.\n"
-  );
-  /*
-  inst.play(
-    "X:1957\n" +
-    "T:Minuet\n" +
-    "C:Henry Purcell\n" +
-    "R:Minuet\n" +
-    "Z:Transcribed by Frank Nordberg - http://www.musicaviva.com\n" +
-    "F:http://abc.musicaviva.com/tunes/purcell-henry/purcell-minuet.abc\n" +
-    "V:1 Program 1 6 %Harpsichord\n" +
-    "V:2 Program 1 6 bass up %Harpsichord\n" +
-    "V:3 Program 1 6 bass merge down %Harpsichord\n" +
-    "M:3/4\n" +
-    "L:1/8\n" +
-    "Q:1/4=120\n" +
-    "K:Am\n" +
-    "V:1\n" +
-    "A^GABA2|B2B2E2|A2^G2A2|B4B2|\n" +
-    "V:2\n" +
-    "C6|B,6|A,6|^G,6|\n" +
-    "V:3\n" +
-    "A,6|=G,6|F,6|E,6|\n" +
-    "%\n" +
-    "V:1\n" +
-    "cBcdc2|B2B2E2|A2B2^G2|{A/^G/}A4e2|\n" +
-    "V:2\n" +
-    "z2=G,2C2|z2D4|C2z2B,2|A,4C2|\n" +
-    "V:3\n" +
-    "C,6|G,4A,2-|A,2E,4|z2A,,2A,2|\n" +
-    "%\n" +
-    "V:1\n" +
-    "{d/e/}d2cBe2|{c/d/}c2BAB2|c2d3c/d/|e6|\n" +
-    "V:2\n" +
-    "B,4B,2|A,4=G,2|z2A,4|^G,6|\n" +
-    "V:3\n" +
-    "A,4^G,2|z2A,,2=G,2|F,6|E,6|\n" +
-    "%\n" +
-    "V:1\n" +
-    "A^GABA2|B2B2E2|A2^G2A2|B4B2|\n" +
-    "V:2\n" +
-    "C6|B,6|A,6|^G,6|\n" +
-    "V:3\n" +
-    "A,6|=G,6|F,6|E,6|\n" +
-    "%\n" +
-    "V:1\n" +
-    "cBcdc2|B2B2E2|A2B2^G2|{A/^G/}A6|]\n" +
-    "V:2\n" +
-    "z2=G,2C2|z2D4|C2z2B,2|A,6|]\n" +
-    "V:3\n" +
-    "C,6|G,4A,2-|A,2E,4|z2A,,4|]\n"
-  );
-  */
+// The song below is written in ABC notation.  More on abc
+// notation can be found at http://abcnotation.com/.
+var song =
+  "X:3556\n" +
+  "T:Menuet\n" +
+  "T:(Minuet) BWV Anh. 121\n" +
+  "C:Johann Sebastian Bach?\n" +
+  "R:Minuet\n" +
+  "Z:Transcribed by Frank Nordberg - http://www.musicaviva.com\n" +
+  "F:http://abc.musicaviva.com/tunes/bach-johann-sebastian/bwva121/bwva121.abc\n" +
+  "V:1 Program 1 6 %Harpsichord\n" +
+  "V:2 Program 1 6 bass %Harpsichord\n" +
+  "M:3/4\n" +
+  "L:1/8\n" +
+  "Q:1/4=132\n" +
+  "K:Cm\n" +
+  "V:1\n" +
+  "c2c2d2|e2e2f2|g2g2a2|T^f4g2-|\n" +
+  "V:2\n" +
+  "C,4 z2|C,2C,2D,2|E,2E,2C,2|D,2C,2=B,,2|\n" +
+  "%\n" +
+  "V:1\n" +
+  "ga=f=ef2-|fg_ede2|c=Bc2d2|G6:|\n" +
+  "V:2\n" +
+  "_B,,4=A,,2|_A,,4G,,2|A,,4F,,2|G,,2G,F,E,D,:|\n" +
+  "%\n" +
+  "V:1\n" +
+  "|:G2G2A2|BAGAB2|C2=E2(3GAB|AGF4|\n" +
+  "V:2\n" +
+  "|:C,2-[C,2-=E,2][C,2F,2]|G,2=E,2C,2|=E,2C,2E,2|F,3G,F,_E,|\n" +
+  "%\n" +
+  "V:1\n" +
+  "F2F2G2|AGFGA2|B,2D2(3FGA|GFE4|\n" +
+  "V:2\n" +
+  "D,2-[D,2B,,2]E,2|F,2D,2C,2|D,2B,,2D,2|E,3F,E,D,|\n" +
+  "%\n" +
+  "V:1\n" +
+  "G2A2=A2|B2=B2c2|=B2c2d2|e2=e2f2|\n" +
+  "V:2\n" +
+  "C,2F,2E,2|D,2G,2E,2|D,2C,2=B,,2|C,2_B,,2=A,,2|\n" +
+  "%\n" +
+  "V:1\n" +
+  "d2_e2=e2|f2^f2g2|G2=fede|c6:|\n" +
+  "V:2\n" +
+  "=B,,2C,2_B,,2|=A,,2_A,,2G,,2|E,2F,2G,2|C,6:|\n" +
+  "W:\n" +
+  "W:\n" +
+  "W:  From Musica Viva - http://www.musicaviva.com\n" +
+  "W:  the Internet center for free sheet music downloads.\n";
 
-}
-
-scale();
-
+// Play a song from a string in ABC notation.
+inst.play(song,
+  // The optional second argument is a callback when the song is done.
+  function() {
+    document.getElementsByTagName('h2')[0].innerHTML += ' (Done playing.)';
+  }
+);
 </script>
 
+<p>Minified, musical.js is about 17K, and it has no dependencies.
+It can also be used as an AMD or node.js modele.
+
+<script>
+// Also, show this document's source code.
+var pre = document.getElementsByTagName('pre')[0];
+pre.innerText = document.body.parentElement.outerHTML;
+pre.innerHTML = pre.innerHTML.replace(
+    /(new Instrument|\/musical\.js|\.play)(?![|\)])/gi,
+    '<b style="background:yellow">$1</b>');
+</script>
+
+</body>
+</html>
