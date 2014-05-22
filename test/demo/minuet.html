@@ -4,7 +4,7 @@
 </head>
 
 <body style="font-family:Arial;padding:36px 20%;">
-<h2>Bach Minuet BvW 121, in C minor.</h2>
+<h2>Bach Minuet BvW 121, in C minor. <span></span></h2>
 
 <p>This web page is a demonstration of the use of musical.js
 with a plain script tag.  Here is the code for this page:</p>
@@ -70,9 +70,29 @@ var song =
 inst.play(song,
   // The optional second argument is a callback when the song is done.
   function() {
-    document.getElementsByTagName('h2')[0].innerHTML += ' (Done playing.)';
+    document.getElementsByTagName('span')[0].innerHTML = '(Done playing.)';
   }
 );
+
+var pressed = {};
+// Optional, just for fun: listen to every note played.
+inst.on('noteon', function(e) {
+  pressed[e.midi] = true;
+  drawMidiNumbers();
+});
+// And listen to every note released.
+inst.on('noteoff', function(e) {
+  delete pressed[e.midi];
+  drawMidiNumbers();
+});
+function drawMidiNumbers() {
+  var k = [];
+  for (var midi in pressed) { k.push(midi); }
+  document.getElementsByTagName('span')[0].innerHTML =
+    '(midi #' + k.join(',') +')';
+}
+
+
 </script>
 
 <p>Minified, musical.js is about 17K, and it has no dependencies.
