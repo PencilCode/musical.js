@@ -21,7 +21,7 @@ module.exports = function(grunt) {
     uglify: {
       all: {
         files: {
-          "music.min.js": [ "music.js" ]
+          "musical.min.js": [ "musical.js" ]
         },
         options: {
           preserveComments: false,

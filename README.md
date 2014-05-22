@@ -1,17 +1,17 @@
-music.js
-============
+musical.js
+==========
 
-[![Build Status](https://travis-ci.org/PencilCode/music.js.png?branch=master)](https://travis-ci.org/PencilCode/music.js)
+[![Build Status](https://travis-ci.org/PencilCode/musical.js.png?branch=master)](https://travis-ci.org/PencilCode/musical.js)
 
-music.js: a sequencing
+musical.js: a sequencing
 [WebAudio](https://dvcs.w3.org/hg/audio/raw-file/tip/webaudio/specification.html)
 synthesizer that supports
 [ABC notation](http://abcnotation.com/).
 
-music.js can be used as a standalone script, a require.js AMD module, or
+musical.js can be used as a standalone script, a require.js AMD module, or
 as a node.js module.  This code has no dependencies other than the HTML5
 WebAudio API, and it
-[minifies down to about 14K](https://raw.githubusercontent.com/PencilCode/music.js/master/music.min.js).
+[minifies down to about 14K](https://raw.githubusercontent.com/PencilCode/musical.js/master/musical.min.js).
 
 Designed for use by
 [jQuery-turtle](https://github.com/PencilCode/jquery-turtle).
@@ -41,11 +41,11 @@ API:
 
 If used as a require.js or node module, then Instrument will be
 a member of the package.  For example, after you do
-`music = require('music');` then you can
-`var ins = new music.Instrument();`.
+`musical = require('musical');` then you can
+`var ins = new musical.Instrument();`.
 
 <pre>
-&lt;script src="music.js"&gt;&lt;/script&gt;
+&lt;script src="musical.js"&gt;&lt;/script&gt;
 
 &lt;script&gt;
 
@@ -106,3 +106,11 @@ function whendone2() {
 &lt;/script&gt;
 </pre>
 
+
+Building and testing musical.js
+-------------------------------
+
+<pre>
+npm install
+grunt
+</pre>
