@@ -238,9 +238,11 @@ var Instrument = (function() {
         var o = ac.createOscillator();
         try {
           if (wavetable.hasOwnProperty(timbre.wave)) {
+            // Use a customized wavetable.
             pwave = wavetable[timbre.wave].wave;
             if (wavetable[timbre.wave].freq) {
               bwf = 0;
+              // Look for a higher-frequency variant.
               for (k in wavetable[timbre.wave].freq) {
                 wf = Number(k);
                 if (record.frequency > wf && wf > bwf) {
@@ -654,7 +656,7 @@ var Instrument = (function() {
   // The default sound is a square wave with a pretty quick decay to zero.
   var defaultTimbre = parseOptionString(
     "wave:square;gain:0.5;" +
-    "attack:0.001;decay:0.4;sustain:0;release:0.1;" +
+    "attack:0.002;decay:0.4;sustain:0;release:0.1;" +
     "cutoff:0;cutfollow:0,resonance:0;detune:0");
 
   // A timbre can specify any of the fields of defaultTimbre; any
@@ -1357,6 +1359,13 @@ var Instrument = (function() {
     return result.join(' ');
   }
 
+  // wavetable is a table of names for nonstandard waveforms.
+  // The table maps names to objects that have wave: and freq:
+  // properties. The wave: property is a PeriodicWave to use
+  // for the oscillator.  The freq: property, if present,
+  // is a map from higher frequencies to more PeriodicWave
+  // objects; when a frequency higher than the given threshold
+  // is requested, the alternate PeriodicWave is used.
   var wavetable = (function(wavedata) {
     if (!isAudioPresent()) { return {}; }
     function makePeriodicWave(ac, data) {
@@ -1384,6 +1393,10 @@ var Instrument = (function() {
       record = result[k] = {};
       d = wavedata[k];
       record.wave = makePeriodicWave(ac, d);
+      // A strategy for computing higher frequency waveforms: apply
+      // multipliers to each harmonic according to d.mult.  These
+      // multipliers can be interpolated and applied at any number
+      // of transition frequencies.
       if (d.mult) {
         ff = wavedata[k].freq;
         record.freq = {};
@@ -1395,6 +1408,13 @@ var Instrument = (function() {
     }
     return result;
   })({
+    // Currently the only nonstandard waveform is "piano".
+    // It is based on the first 32 harmonics from the example:
+    // https://github.com/GoogleChrome/web-audio-samples
+    // /blob/gh-pages/samples/audio/wave-tables/Piano
+    // That is a terrific sound for the lowest piano tones.
+    // For higher tones, interpolate to a customzed wave
+    // shape created by hand.
     piano: {
       real: [0, 0, -0.203569, 0.5, -0.401676, 0.137128, -0.104117, 0.115965,
              -0.004413, 0.067884, -0.00888, 0.0793, -0.038756, 0.011882,
@@ -1407,9 +1427,9 @@ var Instrument = (function() {
              -0.000005, 0.000005, -0.000023, 0.000037, -0.000021, 0.000022,
              -0.000006, 0.000005, -0.000004, 0.000014, -0.000007, 0.000012],
       // How to adjust the harmonics for the higest notes.
-      mult: [1, 3, 1, 0.15, 0.1, 0.1, 0.1, 0.05, 1, 0.1],
+      mult: [1, 3, 1, 0.15, 0.1, 0.1, 0.1, 0.05, 20, 1, 6, 0.1],
       // The frequencies at which to interpolate the harmonics.
-      freq: [80, 120, 180]
+      freq: [90, 100, 120, 160, 250, 400]
     }
   });
 
