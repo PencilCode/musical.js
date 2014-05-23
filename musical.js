@@ -225,11 +225,9 @@ var Instrument = (function() {
       if ((!timbre.cutoff && !timbre.cutfollow) || timbre.cutoff == Infinity) {
         f = g;
       } else {
-        // Apply the cutoff frequency, but if the note is higher or lower
-        // than that frequency, adjust the cutoff frequency using cutfollow.
+        // Apply the cutoff frequency adjusted using cutfollow.
         f = ac.createBiquadFilter();
-        f.frequency.value = timbre.cutoff +
-           (record.frequency - timbre.cutoff) * timbre.cutfollow;
+        f.frequency.value = timbre.cutoff + record.frequency * timbre.cutfollow;
         f.Q.value = timbre.resonance;
         f.connect(g);
       }
@@ -454,6 +452,7 @@ var Instrument = (function() {
         j -= 1;
         if (record.duration > 0 && record.velocity > 0 && conflict !== record) {
           this._finishSet[freq] = record;
+          console.log(freq);
           this._trigger('noteon', record);
         }
       }
@@ -655,9 +654,10 @@ var Instrument = (function() {
 
   // The default sound is a square wave with a pretty quick decay to zero.
   var defaultTimbre = parseOptionString(
-    "wave:square;gain:0.5;" +
-    "attack:0.002;decay:0.4;sustain:0;release:0.1;" +
-    "cutoff:0;cutfollow:0,resonance:0;detune:0");
+      "wave:square;gain:0.5;" +
+      "attack:0.002;decay:0.4;sustain:0;release:0.1;" +
+      "cutoff:0;cutfollow:0;resonance:0;detune:0");
+
 
   // A timbre can specify any of the fields of defaultTimbre; any
   // unspecified fields are treated as they are set in defaultTimbre.
@@ -667,11 +667,13 @@ var Instrument = (function() {
     } else if (typeof(options) == 'string') {
       options = parseOptionString(options, 'wave');
     }
-    var result = {}, key;
-    for (key in defaultTimbre) if (defaultTimbre.hasOwnProperty(key)) {
+    var result = {}, key, wt = wavetable[options.wave];
+    for (key in defaultTimbre) {
       if (options.hasOwnProperty(key)) {
         result[key] = options[key];
-      } else {
+      } else if (wt && wt.defs && wt.defs.hasOwnProperty(key)) {
+        result[key] = wt.defs[key];
+      } else{
         result[key] = defaultTimbre[key];
       }
     }
@@ -1005,8 +1007,7 @@ var Instrument = (function() {
       // Process a parsed stem.
       if (parsed !== null) {
         if (beatlet) {
-          t = (beatlet.time - 1) * parsed.stem.time;
-          syncopateStem(parsed.stem, t);
+          scaleStem(parsed.stem, beatlet.time);
           beatlet.count -= 1;
           if (!beatlet.count) {
             beatlet = null;
@@ -1032,14 +1033,23 @@ var Instrument = (function() {
     }
     return result;
   }
-  // Adjusts the beats for a stem and the contained notes.
+  // Additively adjusts the beats for a stem and the contained notes.
   function syncopateStem(stem, t) {
     var j, stemtime = stem.time, newtime = stemtime + t;
     stem.time = newtime;
+    syncopateStem
     for (j = 0; j < stem.note.length; ++j) {
       note = stem.note[j];
       // Only adjust a note's duration if it matched the stem's duration.
       if (note.time == stemtime) { note.time = newtime; }
+    }
+  }
+  // Scales the beats for a stem and the contained notes.
+  function scaleStem(stem, s) {
+    var j;
+    stem.time *= s;
+    for (j = 0; j < stem.note.length; ++j) {
+      stem.note[j].time *= s;;
     }
   }
   // Parses notation of the form (3 or (5:2:10, which means to do
@@ -1405,6 +1415,10 @@ var Instrument = (function() {
             makePeriodicWave(ac, makeMultiple(d, d.mult, (j + 1) / ff.length));
         }
       }
+      // This wave has some default filter settings.
+      if (d.defs) {
+        record.defs = d.defs;
+      }
     }
     return result;
   })({
@@ -1414,7 +1428,7 @@ var Instrument = (function() {
     // /blob/gh-pages/samples/audio/wave-tables/Piano
     // That is a terrific sound for the lowest piano tones.
     // For higher tones, interpolate to a customzed wave
-    // shape created by hand.
+    // shape created by hand, and apply a lowpass filter.
     piano: {
       real: [0, 0, -0.203569, 0.5, -0.401676, 0.137128, -0.104117, 0.115965,
              -0.004413, 0.067884, -0.00888, 0.0793, -0.038756, 0.011882,
@@ -1427,9 +1441,14 @@ var Instrument = (function() {
              -0.000005, 0.000005, -0.000023, 0.000037, -0.000021, 0.000022,
              -0.000006, 0.000005, -0.000004, 0.000014, -0.000007, 0.000012],
       // How to adjust the harmonics for the higest notes.
-      mult: [1, 4.3, 1, 0.08, 0.05, 0.05, 0.05, 0.02, 54, 1, 11, 0.05],
+      mult: [1, 5, 0.9, 0.08, 0.05, 0.05, 0.05, 0.02, .2, .2, .2, 0.05, 0.02],
       // The frequencies at which to interpolate the harmonics.
-      freq: [100, 110, 130, 160, 200, 400, 720, 1360]
+      freq: [80, 90, 110, 140, 180, 240, 720, 1360],
+      // The default filter settings to use for the piano wave.
+      defs: parseOptionString(
+          "wave:piano;gain:0.5;" +
+          "attack:0.002;decay:0.4;sustain:0.005;release:0.1;" +
+          "cutoff:700;cutfollow:0.1;resonance:1;detune:1.001")
     }
   });
 

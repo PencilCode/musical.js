@@ -4,12 +4,12 @@
 
 <script>
 
-var inst = new Instrument();
+var inst = new Instrument('piano');
 
 function scale() {
   // Change the inst to sound more like a inst.
-  inst.setTimbre("wave:piano;");
-  inst.play({tempo:400},
+  // inst.setTimbre('square');
+  inst.play({tempo:100},
     "C,,, D,,, E,,, F,,, G,,, A,,, B,,," +
     "C,, D,, E,, F,, G,, A,, B,," +
     "C, D, E, F, G, A, B," +
