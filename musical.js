@@ -1266,13 +1266,13 @@ var Instrument = (function() {
   }
   // Converts an ABC pitch (such as "^G,,") to a midi note number.
   function pitchToMidi(pitch) {
-    var m = /^(\^\^|\^|__|_|=|)([A-Ga-g])(,+|'+|)$/.exec(pitch);
+    var m = /^(\^\^|\^|__|_|=|)([A-Ga-g])([,']*)$/.exec(pitch);
     if (!m) { return null; }
-    var n = {C:-9,D:-7,E:-5,F:-4,G:-2,A:0,B:2,c:3,d:5,e:7,f:8,g:10,a:12,b:14};
+    var n = {C:0,D:2,E:4,F:5,G:7,A:9,B:11,c:12,d:14,e:16,f:17,g:19,a:21,b:23};
     var a = { '^^':2, '^':1, '': 0, '=':0, '_':-1, '__':-2 };
-    var semitone =
-      n[m[2]] + a[m[1]] + (/,/.test(m[3]) ? -12 : 12) * m[3].length;
-    return semitone + 69; // 69 = midi code for "A", which is A4.
+    var octave = m[3].replace(/,/g, '').length - m[3].replace(/'/g, '').length;
+    var semitone = n[m[2]] + a[m[1]] + 12 * octave;
+    return semitone + 60; // 60 = midi code middle "C".
   }
   // Converts an ABC pitch to a frequency in Hz.
   function pitchToFrequency(pitch) {
