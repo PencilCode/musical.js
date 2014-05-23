@@ -1,7 +1,7 @@
 {
-  "name": "seedrandom",
-  "version": "2.3.6",
-  "description": "Seeded random number generator for Javascript.",
+  "name": "musical.js",
+  "version": "0.0.1",
+  "description": "An ABC music sequencer and synthesizer for WebAudio.",
   "devDependencies": {
     "qunit": "latest",
     "requirejs": "latest"
