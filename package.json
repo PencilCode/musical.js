@@ -6,7 +6,8 @@
   "keywords": [
     "music",
     "synthesizer",
-    "sequencer"
+    "sequencer",
+    "audio"
   ],
   "scripts": {
     "test": "grunt"
