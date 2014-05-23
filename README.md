@@ -8,7 +8,7 @@ musical.js: a tiny library with a sequencing
 synthesizer that supports
 [ABC notation](http://abcnotation.com/).
 
-[Listen to a little demo here](https://rawgit.com/PencilCode/musical.js/master/test/demo/minuet.html).
+[Listen to a little demo here](https://rawgit.com/PencilCode/musical.js/master/test/demo/moonlight.html).
 musical.js can be used as a standalone script, a require.js AMD module, or
 as a node.js module.  This code has no dependencies other than the HTML5
 WebAudio API, and it
