@@ -1,0 +1,88 @@
+<html>
+<head>
+<script src="../../musical.js"></script> <!-- defines Instrument class -->
+</head>
+
+<body style="font-family:Arial;padding:36px 20%;">
+<h2>Beethoven Sonata. <span></span></h2>
+
+<p>This web page is a demonstration of the use of musical.js
+to play a long song with a lot of chords.  Long sequences need
+to be fed to WebAudio a bit at a time to prevent overloading
+implementation, and music.js does this.  For a song that uses
+more ABC notation features, see <a href="minuet.html">minuet</a>.
+
+<p>Here is the code for this page:</p>
+
+<pre style="background:skyblue"></pre>
+
+<script>
+
+// Select a timbre that sounds like an electric piano.
+var inst = new Instrument('piano'); // ;cutfollow:0;sustain:0.005;xdetune:1.001');
+
+// The song below is written in ABC notation.  More on abc
+// notation can be found at http://abcnotation.com/.
+var song =
+    "X:2\n" +
+    "T:8th Sonata for piano\n" +
+    "%%staves {1 2}\n" +
+    "C:L. van Beethoven\n" +
+    "M:C\n" +
+    "L:1/16\n" +
+    "Q:1/8=66\n" +
+    "F:http://richardrobinson.tunebook.org.uk/tune/6525\n" +
+    "K:Cm\n" +
+    "% .. even when there are a lot of notes\n" +
+    "V:1\n" +
+    "!fp![E,4G,4C4]- [E,3/G,3/C3/]!3![G,/C/]!4![G,3/=B,3/D3/]!5![G,/C/E/] ([=A,4C4E4]!4![=B,2D2])z2|\n" +
+    "!fp!!3![=B,4D4F4]- [B,3/D3/F3/][B,/D/F/][B,3/D3/G3/][B,/D/A/] ([B,4D4A4]!3![C2E2G2])z2|\n" +
+    "V:2\n" +
+    "[C,,4E,,4G,,4C,4]- [C,,3/E,,3/G,,3/C,3/]!2!E,/!3!D,3/!4!C,/ (!2!^F,4G,2)z _A,,|\n" +
+    "_A,4-A,3/!2!A,/!1!G,3/=F,/ E,4-E,2z2|";
+
+// Play a song from a string in ABC notation.
+inst.play(
+  // Next comes one or more songs (to start at once).
+  song,
+  // The optional second argument is a callback when the song is done.
+  function() {
+    document.getElementsByTagName('span')[0].innerHTML = '(Done playing.)';
+  }
+);
+
+var pressed = {};
+// Optional, just for fun: listen to every note played.
+inst.on('noteon', function(e) {
+  pressed[e.midi] = true;
+  drawMidiNumbers();
+});
+// And listen to every note released.
+inst.on('noteoff', function(e) {
+  delete pressed[e.midi];
+  drawMidiNumbers();
+});
+function drawMidiNumbers() {
+  var k = [];
+  for (var midi in pressed) { k.push(midi); }
+  document.getElementsByTagName('span')[0].innerHTML =
+    '(midi #' + k.join(',') +')';
+}
+
+
+</script>
+
+<p>Minified, musical.js is about 17K, and it has no dependencies.
+It can also be used as an AMD or node.js modele.
+
+<script>
+// Also, show this document's source code.
+var pre = document.getElementsByTagName('pre')[0];
+pre.innerText = document.body.parentElement.outerHTML;
+pre.innerHTML = pre.innerHTML.replace(
+    /(new Instrument|\/musical\.js|\.play)(?![|\)])/gi,
+    '<b style="background:yellow">$1</b>');
+</script>
+
+</body>
+</html>

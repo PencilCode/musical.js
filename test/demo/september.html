@@ -1,0 +1,252 @@
+<html>
+<head>
+<script src="../../musical.js"></script> <!-- defines Instrument class -->
+</head>
+
+<body style="font-family:Arial;padding:36px 20%;">
+<h2>Wake me Up When September Ends. <span></span></h2>
+
+<p>This web page is a demonstration of the use of musical.js
+to play a long song with a lot of chords.  Long sequences need
+to be fed to WebAudio a bit at a time to prevent overloading
+implementation, and music.js does this.  For a song that uses
+more ABC notation features, see <a href="minuet.html">minuet</a>.
+
+<p>Here is the code for this page:</p>
+
+<pre style="background:skyblue"></pre>
+
+<script>
+
+// Select a timbre that sounds like an electric piano.
+var inst = new Instrument('piano'); // ;cutfollow:0;sustain:0.005;xdetune:1.001');
+
+// The song below is written in ABC notation.  More on abc
+// notation can be found at http://abcnotation.com/.
+var song =
+    "^G/2 [^Gz/2] [^d3/2z/2] ^G/2 [^G2z/2] [^d5/2z3/2] ^G/2 [^Gz/2]" +
+    "[^d3/2z/2] ^G/2 [^G2z/2] [^d5/2z3/2] ^G/2 [^Gz/2] [^d3/2z/2] ^G/2" +
+    "[^G2z/2] [^d5/2z3/2] ^G/2 [^Gz/2] [^d3/2z/2] ^G/2 [^G2z/2]" +
+    "[^d5/2z3/2] [^A3/2^G/2] [^Gz/2] [^d3/2z/2] [c3/2^G/2] [^G2z/2]" +
+    "[^d5/2z/2] c [^A=G3/2z/2] [^G3/2z/2] [c/2^d3/2] [c3/2=G9/2z/2]" +
+    "[^G2z/2] [^d5/2z] ^D/2 [^AF3/2z/2] [^G3/2z/2] [c/2^d3/2] [cF7/2z/2]" +
+    "^G/2 [^G3/2^d2z] [fz/2] [^D3/2z/2] [^d/2^G3/2] [^d3/2z/2] [c/4^D3]" +
+    "^A/4 [^G2z/2] ^d3/2 [^d4^C3/2z/2] [^Gz/2] [^c3/2f3/2z/2] [^G/2^C5/2]" +
+    "[^G2z/2] [f11/4^c] [^c3/2z/2] [^d^C3/2z/2] [^Gz/2] [^c3/2e3/2z/2]" +
+    "[^G/2^C3] [^G3z/2] [^Ae3^c] [=c2^c3/2z/2] [^G,4z/2] [^D3/2z/2]" +
+    "[^G/2^d3/2] [^Gz/2] [^D5/2z/2] [^G^d] [^G3/2^d3/2z/2] [^G,9/2z/2]" +
+    "[^D3/2z/2] [^G/2^d3/2] [^Gz/2] [^D3z/2] [^d5/2^G] ^G/2 [^A^G/2^g4f4]" +
+    "[^Gz/2] [=c/2^d3/2] [c^G/2] [^G5/2z/2] [c3/2^d3/2] [^A=G3/2^d=g4z/2]" +
+    "[^G3/2z/2] [c/2^d3/2] [c2=G9/2z/2] [^G5/2z/2] [^d5/2z3/2]" +
+    "[^AF3/2f7/2^c4z/2] [^G3/2z/2] [=c/2^d3/2] [cF7/2z/2] ^G/2 [^G2^d3/2z]" +
+    "[fz/2] [^D3/2c3/2^d/2] [^d/2^G3/2] [^d3/2z/2] [c5/2^D3z/4] ^A/4" +
+    "[^G2z/2] ^d3/2 [^d4^C3/2^cfz/2] [^Gz/2] [^c3/2f3/2z/2] [^G/2^C5/2]" +
+    "[^G2z/2] [^cf5/2] [^c3/2z/2] [^d^C3/2ez/2] [^Gz/2] [^c3/2e3/2z/2]" +
+    "[^G/2^C7/2] [^G2z/2] [^Ae5/2^c] [=c2^c3/2z/2] [^G,3/2^d^G^g4z/2]" +
+    "[^D3/2z/2] [^d3/2^G3/2z/2] [^G,5/2z/2] [^D5/2z/2] [^d^G]" +
+    "[^d3/2^G3/2z/2] [^G,2z/2] [^D2z/2] [^d2^G/2] [^G2z/2] [=G,2z/2]" +
+    "[^D5/2z/2] [^d3/4^Az/2] [=c11/8^G3/2z/2] [^A3/2F,3/2=C/2f] [C7/2z/2]" +
+    "[c/2^G3/2f3/2] [cF,5/2z/2] [F3/2z/2] [c2f27/8^G3/2z] [F3/4z/2]" +
+    "[^AC3/2=G/2^d] [G3/2z/2] [c/2^d3/2] [cC3z/2] [G3z/2] [^d5/2c19/8z3/2]" +
+    "[^c^C3/2^Gfz/2] [F3/2z/2] [=cf3/2^c3/2^Gz/2] [^C3z/2]" +
+    "[^G/2F11/4=c3/2c'2] [^Af3^c11/4^G5/2] [=c2z/2] [^G,9/4^D/2^d] [^Dz/2]" +
+    "[^G4^d2z/2] [^Dz/2] [=G,5/2z/2] [^D5/2z/2] [^A^d3z/2] [c3/2z/2]" +
+    "[^A3/2F,3/2=C/2f] [C7/2z/2] [c/2f3/2^G3/2] [cF,7/2z/2] [F3/2z/2]" +
+    "[c3/2^G5/2f3z] F/2 [cC3/2=G/2^d] G/2 [G/2c3/2^d3/2] [G/2C5/2]" +
+    "[G13/4z/2] [c3/2^d11/4z] ^G/2 [c3/2^C3/2^Gfz/2] [F3/2z/2]" +
+    "[^A^Gf3/2^c3/2z/2] [^C5/2z/2] [^G/2F5/2=c2c'2] [^G2^c3f3z/2] ^A/2" +
+    "^A/2 [^D3/2^A/2^d] [^A3/2z/2] [^d3/2=g3/2z/2] [^D5/2z/2] [^A2z/2]" +
+    "[^d2g2z3/2] [^A3/2^G/2^g4f4] [^Gz/2] [^d3/2z/2] [=c^G/2] [^G2z/2]" +
+    "[c^d3/2] c/2 [^A/2=G3/2^d=g4] [c^G3/2z/2] [^d3/2z/2] [c3/2=G9/2z/2]" +
+    "[^G3/2z/2] [^d5/2z] [^Gz/2] [^A/2F3/2f7/2^c4] [=c7/8^G3/2z/2]" +
+    "[^d3/2z3/8] [c9/8z/8] [F3z/2] ^G/2 [^G7/4^d3/2z] [fz/2]" +
+    "[^D3/2^d/2c3/2] [^d/2^G3/2] [^d3/2z/2] [c5/2^D7/2z/4] ^A/4" +
+    "[^G17/8z/2] ^d3/2 [^d^C3/2f^cF4z/2] [^Gz/2] [^c3/2f3/2z/2]" +
+    "[^G/2^C5/2] [^G2z/2] [^cf11/4] ^c/2 [^c^C3/2eE4z/2] [^Gz/2]" +
+    "[=c/2e3/2^c3/2] [^G/2^C7/2] [^G2z/2] [^A3/2e11/4^c] [^c3/2z/2]" +
+    "[^A/2^G,/2^d^G/2^g4] [^G/2^D3/2^G,] [^G/2^d3/2] [^G^G,/2]" +
+    "[^D5/2^G,2z/2] [^G^d] [^G/2^d/2] [^G,/2^G^d^g4] [^D3/2^G,z/2]" +
+    "[^G/2^d3/2] [^G^G,/2] [^D3^G,5/2z/2] [^d5/2^G] ^G/2 ^G/2 [^Gz/2]" +
+    "[^d3/2z/2] ^G/2 [^G2z/2] [^d5/2z3/2] ^G/2 [^Gz/2] [^d3/2z/2] ^G/2" +
+    "[^G2z/2] [^d5/2z3/2] ^G/2 [^Gz/2] [^d3/2z/2] ^G/2 [^G2z/2]" +
+    "[^d5/2z3/2] ^G/2 [^Gz/2] [^d3/2z/2] ^G/2 [^G2z/2] [^d5/2z3/2] ^G/2" +
+    "[^Gz/2] [^d3/2z/2] ^G/2 [^G2z/2] [^d5/2z3/2] ^G/2 [^Gz/2] [^d3/2z/2]" +
+    "^G/2 [^G2z/2] [^d5/2z3/2] [^A3/2^G/2f4^g4] [^Gz/2] [^d3/2z/2]" +
+    "[=c^G/2] [^G2z/2] [c3/2^d3/2] [^A=G/2^d=g4] [^G3/2=Gz/2] [c/2^d3/2]" +
+    "[c3/2G/2] [^G2=G4z/2] [^d5/2z] ^D/2 [^AF/2^c4f7/2] [^G3/2Fz/2]" +
+    "[=c/2^d3/2] [cF/2] [^G/2F3] [^G3/2^d3/2z] [fz/2] [^D/2^d/2c3/2]" +
+    "[^d/2^G3/2^D] [^d3/2z/2] [c5/2^D/2z/4] ^A/4 [^G2^D3z/2] ^d3/2" +
+    "[^d4^Cf^c^C,^g] ^G/2 [^cf3/2^C,^G/2^C/2^g] [^G/2^C/2] [^G^C,^C^c/2^g]" +
+    "[^c/2f11/4] [^C,^G^g^c/2^C] ^c/2 [^d^Ce^C,^G/2^c] ^G/2" +
+    "[^ce^C,^G/2^g^C/2] [^G/2^C/2] [^G^C,^c/2e/2^C^g] [^A^c/2e/2]" +
+    "[^C,^g^C3/2^G^c/2e9/4] [=c2^c3/2z/2] [^G,/2^D/2^G/2^d^g4]" +
+    "[^D/2^G,/2^G/2] [^G/2^d3/2^G,/2^D/2] [^G/2^D/2^G,/2] [^D/2^G,/2^G/2]" +
+    "[^G/2^d^G,/2^D/2] [^G,/2^D/2^G/2] [^G/2^d3/2^G,/2^D/2]" +
+    "[^G,/2^G/2^D/2] [^D/2^G,/2^G/2] [^d3/2^G/2^G,/2^D/2] [^G/2^G,/2^D/2]" +
+    "[^D/2^G/2^G,/2] [^d5/2^G/2^G,/2^D/2] [^D/2^G,/2^G/2] [^G/2^D3/2^G,/2]" +
+    "[^A3/2^G/2^g4f4^G,/2] [^G^G,/2] [^d3/2^G,/2] [=c^G/2^G,/2]" +
+    "[^G5/2^G,/2] [c3/2^d3/2^G,/2] z [^A=G/2^d=g4=G,/2] [^G3/2G,/2=G]" +
+    "[c/2^d3/2G,/2] [c2G/2G,/2] [^G5/2G,/2=G4] [^d5/2G,/2] z" +
+    "[^AF/2f7/2^c4F,/2] [^G3/2F,/2F] [=c/2^d3/2F,/2] [cF/2F,/2]" +
+    "[^G/2F,/2F3] [^G2^d3/2F,/2] z/2 [fz/2] [^D/2^d/2c3/2^D,/2]" +
+    "[^d/2^G3/2^D,^D] [^d3/2z/2] [c5/2^D/2^D,/2z/4] ^A/4 [^G2^D,/2^D3]" +
+    "[^d3/2^D,/2] z [^d4^Cf^c^C,^G/2] ^G/2 [^cf3/2^C,^g^C/2^G/2]" +
+    "[^G/2^C/2] [^G^C^g^c/2^C,] [^c/2f5/2] [^C,^C^g^c/2^G] ^c/2" +
+    "[^d^Ce^C,^g^G/2] ^G/2 [^ce^C,^G/2^C/2^g] [^G/2^C/2]" +
+    "[^G^Ce/2^g^c/2^C,] [^A^c/2e/2] [^C,^G^c/2^g^C3/2e9/4] [=c2^c3/2z/2]" +
+    "[^G,/2^G/2^d^D/2^g4] [^D/2^G,/2^G/2] [^G/2^d3/2^G,/2^D/2]" +
+    "[^G,/2^D/2^G/2] [^D/2^G,/2^G/2] [^d^G/2^G,/2^D/2] [^G,/2^G/2^D/2]" +
+    "[^d3/2^G/2^D/2^G,/2] [^G,/2^G/2^D/2] [^D/2^G,/2^G/2]" +
+    "[^G/2^d2^G,/2^D/2] [^G2^G,/2^D/2] [=G,/2=G2^D/2^A/2] [^D/2G,/2^A/2]" +
+    "[^A/2^dG,/2^D/2] [=c11/8^G3/2G,3/2^A/2^D3/2] [^A3/2F,^g4fF=C/2] C/2" +
+    "[c/2f3/2^G3/2FCF,/2] [cF,/2] [FF,Cz/2] [c3/2^G3/2f5/2z/2] [F/2F,C]" +
+    "[F3/4z/2] [^AC=g4c=C,3/2=G/2] G/2 [c/2^d3/2GC/2] [c/2C/2C,/2]" +
+    "[GC,7/4c/2C] [c/2^d5/2] [Cc15/8G2] [^c^Cf^C,3/2^Gz/2] [F3/2z/2]" +
+    "[=c^Gf3/2^c^C/2] [^C/2^C,/2] [^G/2F11/4^C,7/4^C^c/2] [^A^G/2^c/2f3]" +
+    "[^C3/2^c9/4^Gz/2] [=c2z/2] [^G,/2^d^G/2^D/2] [^D/2^G,/2^G/2]" +
+    "[^d2^G/2^G,/2^D/2] [^D/2^G,3/4^G7/2] [=G,/2=G2^A/2^D/2]" +
+    "[^D/2G,/2^A/2] [^d9/4^A/2G,/2^D/2] [c3/2^D3/2^A/2G,]" +
+    "[^A3/2F,f^g4F=C/2] C/2 [c/2f3/2^G3/2FCF,/2] [cF,/2] [FF,Cz/2]" +
+    "[c3/2f3^G2z/2] [CF/2F,2] F/2 [cC=g4=C,3/2=G/2] G/2 [G/2c^d3/2C/2]" +
+    "[G/2C/2C,/2] [GCc/2C,3/2] [c/2^d11/4] [cCG9/4z/2] ^G/2" +
+    "[c^Cf^c^C,3/2^G] [F3/2z/2] [^A^Gf3/2^c^C/2] [^C/2^C,/2]" +
+    "[^G/2F5/2^c/2^C^C,7/4] [^G/2^c/2f11/4] [^A/2^C^c2^G3/2] ^A/2" +
+    "[^D/2^d/2^A/2^D,] [^A/2^D/2^d/2] [g3/2^d/2^D,^A/2^D/2] [^D/2^d/2^A/2]" +
+    "[^A/2^D,^d/2^D/2] [g2^d/2^D/2^A/2] [^D,^D/2^d/2^A/2] [^d^A/2^D/2]" +
+    "[^A3/2^G/2f4^g4^G,/2] [^G^G,/2] [^d3/2^G,/2] [=c^G/2^G,/2] [^G2^G,/2]" +
+    "[c^d3/2^G,/2] z/2 c/2 [^A/2=G/2=g4^d=G,/2] [c^G3/2G,/2=G] [^d3/2G,/2]" +
+    "[c3/2G/2G,/2] [^G3/2G,/2=G4] [^d5/2G,/2] z/2 ^G/2 [^A/2F/2^c4f4F,/2]" +
+    "[=c7/8^G3/2F,/2F] [^d3/2F,/2z3/8] [c9/8z/8] [F/2F,/2] [^G/2F,/2F9/4]" +
+    "[^G3/2^d3/2F,/2] z [f/2^D/2^d/2c3/2^D,/2] [^d/2^G3/2^D,^D] [^d3/2z/2]" +
+    "[c5/2^D/2^D,/2z/4] ^A/4 [^G2^D,/2^D9/4] [^d3/2^D,/2] z" +
+    "[^d3/2^Cf^c^C,^g] ^G/2 [^cf3/2^C,^g^G/2^C/2] [^G/2^C/2]" +
+    "[^G^C,^c/2^g^C] [^c/2f11/4] [^C,^C^g^G^c/2] ^c/2 [^c^Ce^C,^G/2^g]" +
+    "^G/2 [=c/2e^c^C,^G/2^C/2] [^G/2^C/2] [^G^C,^c/2e/2^C^g]" +
+    "[^A3/2e/2^c/2] [^C,e2^g^c/2^G^C3/2] [^c3/2z/2]" +
+    "[^A/2^G,/2^D/2^G/2^d^g4] [^G/2^D/2^G,/2] [^G/2^d3/2^D/2^G,/2]" +
+    "[^G/2^D/2^G,/2] [^D/2^G/2^G,/2] [^G/2^d^G,/2^D/2] [^G/2^D/2^G,/2]" +
+    "[^G/2^d3/2^G,/2^D/2] [^G,/2^D/2^G/2] [^D/2^G,/2^G/2]" +
+    "[^G/2^d2^D/2^G,/2] [^G2^G,/2^D/2] [=G,/2^A/2^D/2=G2] [^D/2^A/2G,/2]" +
+    "[^A/2^dG,/2^D/2] [=c5/4^G3/2G,/2^D3/2^A/2] [F,/2f^g/2F=C/2]" +
+    "[C/2F,/2^g] [c3/2f3/2^G3/2F,/2FC] [F,/2^g/2] [FF,/2C^g]" +
+    "[f3^G5/2c3/2F,/2c'/2] [F,/2CF/2^g] [F/2F,3/2c'/2] [Cc=g/2=C,/2=G/2]" +
+    "[G/2C,/2g] [^d3/2cC,/2C/2Gc'/2] [C/2C,/2g/2] [GC,/2c/2Cg]" +
+    "[^d5/2c/2C,/2c'/2] [C,/2c5/2G19/8Cg] [C,/2c'/2] [^Cf^c^C,/2^G^g/2]" +
+    "[F3/2^C,/2^g/2] [f3/2^c^G^C,/2^C/2] [^C/2^C,/2^g/2]" +
+    "[F5/2^C,/2^c/2^G/2^C^g/2] [^G/2^c/2f3^C,/2] [^C,/2^C^G^c/2^g/2]" +
+    "[^C,/2^c2] [^G,/2^d^G/2^D/2^g/2] [^D/2^G,/2^G/2^g/2]" +
+    "[^d2^G/2^G,/2^D/2^g/2] [^G2^G,/2^D/2^g/2] [=G,/2=G2^A/2^D/2=g/2]" +
+    "[^D/2G,/2^A/2g/2] [^d2^A/2G,/2^D/2g/2] [^G3/2=c5/4G,/2^A/2^D3/2g/2]" +
+    "[F,/2^g/2f=C/2F] [C/2F,/2^g] [^G3/2c3/2f3/2F,/2CF] [F,/2^g/2]" +
+    "[FF,/2C^g] [c3/2f3^G5/2F,/2c'/2] [F,/2CF/2^g] [F/2F,3/2c'/2]" +
+    "[C=g/2c=C,/2=G/2] [G/2C,/2g] [c^d3/2C,/2GC/2c'/2] [C/2C,/2g/2]" +
+    "[GC,/2Cc/2g] [c/2^d5/2C,/2c'/2] [C,/2CG9/4c5/2g] [C,/2c'/2]" +
+    "[^Cf^c^C,/2^G^g/2] [F3/2^C,/2^g/2] [^c^Gf3/2^C,/2^C/2]" +
+    "[^C/2^C,/2^g/2] [F5/2^C,/2^c/2^G/2^C^g/2] [^c/2f3^G/2^C,/2]" +
+    "[^C,/2^C^c/2^G3/2^g/2] [^C,/2^c2] [^D^A/2^d/2^D,/2^g/2]" +
+    "[^A/2^D,/2^g/2^d/2] [^g/2^d/2^D,/2^D/2^A/2] [^D/2^D,/2^g/2^d/2^A/2]" +
+    "[^A/2^D,/2^D^d/2^g/2] [^g/2^d/2^D,/2^A/2] [^D,/2^D^d/2^A/2^g/2]" +
+    "[^G^D,/2^d/2^g/2^A/2] [^D^d/2^D,/2^A/2=g/2] [^A/2^D,/2^d/2g/2]" +
+    "[g/2^d/2^D,/2^A/2^D/2] [^D/2^D,/2^d/2g/2^A/2] [^A/2^D,/2^d/2^Dg/2]" +
+    "[^d/2g/2^D,/2^A/2] [^D,/2^D^d/2^A/2g/2] [^G^D,/2^A/2g/2^d/2]" +
+    "[^D^d/2^D,/2^A/2^g/2] [^A/2^D,/2^d/2^g/2] [^d/2^g/2^D,/2^D/2^A/2]" +
+    "[^D/2^D,/2^g/2^A/2^d/2] [^A/2^D,/2^d/2^D^g/2] [^g/2^d/2^D,/2^A/2]" +
+    "[^D,/2^d/2^D^A/2^g/2] [^G^D,/2^A/2^d/2^g/2] [^D^d/2^D,/2^A/2=g/2]" +
+    "[^A/2^D,/2g/2^d/2] [^d/2g/2^D,/2^A/2^D/2] [^D/2^D,/2g/2^d/2^A/2]" +
+    "[^A/2^D,/2^d/2^Dg/2] [g/2^d/2^D,/2^A/2] [^D,/2^D^A/2^d/2g/2]" +
+    "[^G/2^D,/2g/2^A/2^d/2] [^G/2^G,19/4^D21/4^g3/2^d] [^Gz/2] [^d3/2z/2]" +
+    "[^G/2^g15/4] [^G2z/2] ^d3/2 [^G/2^d] [^Gz/2] [^d3/2z/2] [^G/2^g9/4]" +
+    "[^G2z/2] ^d3/2 [^G/2^d] [^Gz/2] [^d3/2z/2] [^G/2^g2] [^G2z/2]" +
+    "[^d2z3/2] ^G/2 [^G^d/2] [^d3/2z/2] [^G/2^g2] [^G2z/2] [^d5/2z3/2]" +
+    "[^A3/2^G/2^g4f4] [^Gz/2] [^d3/2z/2] [=c3/2^G/2] [^G19/8z/2]" +
+    "[^d3/2z/2] c [^A=G3/2^d=g4z/2] [^G3/2z/2] [c/2^d3/2] [c3/2=G9/2z/2]" +
+    "[^G9/4z/2] [^d5/2z] ^D/2 [^AF3/2^c4f7/2z/2] [^G3/2z/2] [=c/2^d3/2]" +
+    "[cF11/4z/2] ^G/2 [^G3/2^d3/2z] [fz/2] [^D3/2^d/2c3/2] [^d/2^G3/2]" +
+    "[^d3/2z/2] [c5/2^D11/4z/4] ^A/4 [^G2z/2] ^d3/2 [^d^CF4f^C,^G/2] ^G/2" +
+    "[^cf3/2^C,^G/2^g^C/2] [^G/2^C/2] [^G^C,^c/2^g^C] [^c/2f5/2]" +
+    "[^C,^C^g^c/2^G] ^c/2 [^d^CE4e^C,^g] ^G/2 [^ce^C,^g^C/2^G/2]" +
+    "[^G/2^C/2] [^G^C,e/2^g^c/2^C] [^A^c/2e/2] [^C,^g^G^C3/2^c/2e5/2]" +
+    "[=c2^c3/2z/2] [^G,/2^D/2^G/2^g4] [^D/2^G,/2^G/2] [^d3/2^G/2^G,/2^D/2]" +
+    "[^G/2^G,/2^D/2] [^D/2^G,/2^G/2] [^d^G/2^G,/2^D/2] [^G,/2^G/2^D/2]" +
+    "[^d3/2^G/2^G,/2^D/2] [^G,/2^G/2^D/2] [^D/2^G,/2^G/2]" +
+    "[^d3/2^G/2^G,/2^D/2] [^G/2^G,/2^D/2] [^D/2^G,/2^G/2]" +
+    "[^d5/2^G/2^G,/2^D/2] [^G,/2^G/2^D/2] [^G/2^G,/2^D3/2]" +
+    "[^A^G/2^g4f4^G,/2] [^G^G,/2] [=c/2^d3/2^G,/2] [c^G/2^G,/2]" +
+    "[^G19/8^G,/2] [c^d3/2^G,/2] z [^A=G/2=g4^d=G,/2] [^G3/2G,/2=G]" +
+    "[c/2^d3/2G,/2] [c2G/2G,/2] [^G9/4G,/2=G4] [^d5/2G,/2] z" +
+    "[^AF/2^c4f7/2F,/2] [^G3/2F,/2F] [=c/2^d3/2F,/2] [cF/2F,/2]" +
+    "[^G/2F,/2F3] [^G3/2^d3/2F,/2] z/2 [fz/2] [^D/2c3/2^d/2^D,/2]" +
+    "[^d/2^G3/2^D,^D] [^d3/2z/2] [c5/2^D/2^D,/2z/4] ^A/4 [^G2^D,/2^D3]" +
+    "[^d3/2^D,/2] z [^d4^Cf^c^C,^g] ^G/2 [^cf3/2^C,^C/2^G/2^g] [^G/2^C/2]" +
+    "[^G^C,^C^g^c/2] [f11/4^c/2] [^C,^C^G^c/2^g] ^c/2 [^d^Ce^C,^g^c] ^G/2" +
+    "[^ce^C,^g^G/2^C/2] [^G/2^C/2] [^G^C,e/2^c/2^C^g] [^A^c/2e/2]" +
+    "[^C,^g^Ge5/2^C3/2^c/2] [=c2^c3/2z/2] [^G,/2^G/2^d^D/2^g4]" +
+    "[^D/2^G,/2^G/2] [^G/2^d3/2^G,/2^D/2] [^G/2^G,/2^D/2] [^D/2^G,/2^G/2]" +
+    "[^d^G/2^G,/2^D/2] [^G,/2^G/2^D/2] [^G/2^d/2^G,/2^D/2]" +
+    "[^G,/2^G/2^d^D/2^g4] [^D/2^G,/2^G/2] [^d3/2^G/2^G,/2^D/2]" +
+    "[^G/2^G,/2^D/2] [^D/2^G,/2^G/2] [^G/2^d3/2^G,/2^D/2] [^G,/2^D/2^G/2]" +
+    "[^G/2^G,/2^D/2] [^d^Cf^c^C,^g] ^G/2 [^cf3/2^C,^G/2^g^C/2] [^G/2^C/2]" +
+    "[^G^C,^g^c/2^C] [^c/2f11/4] [^C,^g^c/2^C^G] ^c/2 [^d^Ce^C,^g^G/2]" +
+    "^G/2 [^ce^C,^g^C/2^G/2] [^G/2^C/2] [^G^C,^g^c/2e/2^C] [^A^c/2e/2]" +
+    "[^C,^c/2^ge5/2^C7/4^G] [=c2^c3/2z/2] [^G,/2^G/2^d^D/2^g4]" +
+    "[^D/2^G,/2^G/2] [^G/2^d3/2^G,/2^D/2] [^G/2^G,/2^D/2] [^D/2^G,/2^G/2]" +
+    "[^d^G/2^G,/2^D/2] [^G,/2^D/2^G/2] [^d/2^G/2^G,/2^D/2]" +
+    "[^G,/2^G/2^d^D/2^g4] [^D/2^G,/2^G/2] [^G/2^d3/2^G,/2^D/2]" +
+    "[^G/2^G,/2^D/2] [^D/2^G,/2^G/2] [^G/2^d^G,/2^D/2] [^G,/2^G/2^D/2]" +
+    "[^G/2^G,/2^D3/4^d/2] [^d4^Cf^c^C,^g] ^G/2 [^cf3/2^C,^C/2^G/2^g]" +
+    "[^G/2^C/2] [^G^C,^c/2^g^C] [f11/4^c/2] [^C,^g^C^c/2^G] ^c/2" +
+    "[^d^Ce^C,^c^G/2] ^G/2 [^ce^C,^C/2^G/2^g] [^G/2^C/2]" +
+    "[^G^C,^g^c/2e/2^C] [^A^c/2e/2] [^C,^g^Ge9/4^c/2^C3/2] [^A/2^c3/2]" +
+    "[^G/2^G,/2^d^D/2^g4] [^D/2^G,/2^G/2] [^d3/2^G/2^G,/2^D/2]" +
+    "[^G/2^G,/2^D/2] [^D/2^G,/2^G/2] [^G/2^G,/2^D/2^d3/2] [^G,/2^G/2^D/2]" +
+    "[^G/2^G,/2^D/2] [^G,17/2^d/8^G/8^D/8^g3/2] [^D75/8^G31/8^d11/8] ^d3/2" +
+    "[^d5/2z] [^G13/2^g3/2] ^d3/2 ^d5/2";
+
+// Play a song from a string in ABC notation.
+inst.play(
+  // The optional first argument is an options object that can set
+  // the tempo or the timbre.
+  { tempo:100 },
+  // Next comes one or more songs (to start at once).
+  song,
+  // The optional second argument is a callback when the song is done.
+  function() {
+    document.getElementsByTagName('span')[0].innerHTML = '(Done playing.)';
+  }
+);
+
+var pressed = {};
+// Optional, just for fun: listen to every note played.
+inst.on('noteon', function(e) {
+  pressed[e.midi] = true;
+  drawMidiNumbers();
+});
+// And listen to every note released.
+inst.on('noteoff', function(e) {
+  delete pressed[e.midi];
+  drawMidiNumbers();
+});
+function drawMidiNumbers() {
+  var k = [];
+  for (var midi in pressed) { k.push(midi); }
+  document.getElementsByTagName('span')[0].innerHTML =
+    '(midi #' + k.join(',') +')';
+}
+
+
+</script>
+
+<p>Minified, musical.js is about 17K, and it has no dependencies.
+It can also be used as an AMD or node.js modele.
+
+<script>
+// Also, show this document's source code.
+var pre = document.getElementsByTagName('pre')[0];
+pre.innerText = document.body.parentElement.outerHTML;
+pre.innerHTML = pre.innerHTML.replace(
+    /(new Instrument|\/musical\.js|\.play)(?![|\)])/gi,
+    '<b style="background:yellow">$1</b>');
+</script>
+
+</body>
+</html>
