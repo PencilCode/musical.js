@@ -54,6 +54,113 @@ function audioCurrentStartTime() {
   return audioTop.currentStart;
 }
 
+// An options string looks like a (simplified) CSS properties string,
+// of the form prop:value;prop:value; etc.  If defaultProp is supplied
+// then the string can begin with "value" (i.e., value1;prop:value2)
+// and that first value will be interpreted as defaultProp:value1.
+// Some rudimentary quoting can be done, e.g., value:"prop", etc.
+function parseOptionString(str, defaultProp) {
+  var result = {}, key = null;
+  if (str == null) { return result; }
+  if (typeof(str) == 'object') {
+    for (key in str) if (str.hasOwnProperty(key)) {
+      result[key] = str[key];
+    }
+    return result;
+  }
+  str = '' + str;
+  // Each token is an identifier, a quoted or parenthesized string,
+  // a run of whitespace, or any other non-matching character.
+  var token = str.match(/[-a-zA-Z_][-\w]*|"[^"]*"|'[^']'|\([^()]*\)|\s+|./g),
+      t, value, arg,
+      seencolon = false, vlist = [], firstval = true;
+
+  // While parsing, commitvalue() validates and unquotes a prop:value
+  // pair and commits it to the result.
+  function commitvalue() {
+    // Trim whitespace
+    while (vlist.length && /^\s/.test(vlist[vlist.length - 1])) {vlist.pop();}
+    while (vlist.length && /^\s/.test(vlist[0])) { vlist.shift(); }
+    if (vlist.length == 1 && (
+          /^".*"$/.test(vlist[0]) || /^'.*'$/.test(vlist[0]))) {
+      // Unquote quoted string.
+      value = vlist[0].substr(1, vlist[0].length - 2);
+    } else if (vlist.length == 2 && vlist[0] == 'url' &&
+        /^(.*)$/.test(vlist[1])) {
+      // Remove url(....) from around a string.
+      value = vlist[1].substr(1, vlist[1].length - 2);
+    } else {
+      // Form the string for the value.
+      arg = vlist.join('');
+      // Convert the value to a number if it looks like a number.
+      if (arg == "") {
+        value = arg;
+      } else if (isNaN(arg)) {
+        value = arg;
+      } else {
+        value = Number(arg);
+      }
+    }
+    // Deal with a keyless first value.
+    if (!seencolon && firstval && defaultProp && vlist.length) {
+      // value will already have been formed.
+      key = defaultProp;
+    }
+    if (key) {
+      result[key] = value;
+    }
+  }
+  // Now the parsing: just iterate through all the tokens.
+  for (j = 0; j < token.length; ++j) {
+    t = token[j];
+    if (!seencolon) {
+      // Before a colon, remember the first identifier as the key.
+      if (!key && /^[a-zA-Z_-]/.test(t)) {
+        key = t;
+      }
+      // And also look for the colon.
+      if (t == ':') {
+        seencolon = true;
+        vlist.length = 0;
+        continue;
+      }
+    }
+    if (t == ';') {
+      // When a semicolon is seen, form the value and save it.
+      commitvalue();
+      // Then reset the parsing state.
+      key = null;
+      vlist.length = 0;
+      seencolon = false;
+      firstval = false;
+      continue;
+    }
+    // Accumulate all tokens into the vlist.
+    vlist.push(t);
+  }
+  commitvalue();
+  return result;
+}
+
+// Prints a map of options as a parsable string.
+// The inverse of parseOptionString.
+function printOptionAsString(obj) {
+  var result = [];
+  function quoted(s) {
+    if (/[\s;]/.test(s)) {
+      if (s.indexOf('"') < 0) {
+        return '"' + s + '"';
+      }
+      return "'" + s + "'";
+    }
+    return s;
+  }
+  for (var k in obj) if (obj.hasOwnProperty(k)) {
+    result.push(k + ':' + quoted(obj[k]) + ';');
+  }
+  return result.join(' ');
+}
+
 // All further details of audio handling are encapsulated in the Instrument
 // class, which knows how to synthesize a basic timbre; how to play and
 // schedule a tone; and how to parse and sequence a song written in ABC
@@ -452,7 +559,6 @@ var Instrument = (function() {
         j -= 1;
         if (record.duration > 0 && record.velocity > 0 && conflict !== record) {
           this._finishSet[freq] = record;
-          console.log(freq);
           this._trigger('noteon', record);
         }
       }
@@ -1261,112 +1367,6 @@ var Instrument = (function() {
       n = parseFloat(m[1].substring(ilen))
     }
     return i + (n / d);
-  }
-
-  // An options string looks like a (simplified) CSS properties string,
-  // of the form prop:value;prop:value; etc.  If defaultProp is supplied
-  // then the string can begin with "value" (i.e., value1;prop:value2)
-  // and that first value will be interpreted as defaultProp:value1.
-  // Some rudimentary quoting can be done, e.g., value:"prop", etc.
-  function parseOptionString(str, defaultProp) {
-    var result = {}, key = null;
-    if (str == null) { return result; }
-    if (typeof(str) == 'object') {
-      for (key in str) if (str.hasOwnProperty(key)) {
-        result[key] = str[key];
-      }
-      return result;
-    }
-    str = '' + str;
-    // Each token is an identifier, a quoted or parenthesized string,
-    // a run of whitespace, or any other non-matching character.
-    var token = str.match(/[-a-zA-Z_][-\w]*|"[^"]*"|'[^']'|\([^()]*\)|\s+|./g),
-        t, value, arg,
-        seencolon = false, vlist = [], firstval = true;
-
-    // While parsing, commitvalue() validates and unquotes a prop:value
-    // pair and commits it to the result.
-    function commitvalue() {
-      // Trim whitespace
-      while (vlist.length && /^\s/.test(vlist[vlist.length - 1])) {vlist.pop();}
-      while (vlist.length && /^\s/.test(vlist[0])) { vlist.shift(); }
-      if (vlist.length == 1 && (
-            /^".*"$/.test(vlist[0]) || /^'.*'$/.test(vlist[0]))) {
-        // Unquote quoted string.
-        value = vlist[0].substr(1, vlist[0].length - 2);
-      } else if (vlist.length == 2 && vlist[0] == 'url' &&
-          /^(.*)$/.test(vlist[1])) {
-        // Remove url(....) from around a string.
-        value = vlist[1].substr(1, vlist[1].length - 2);
-      } else {
-        // Form the string for the value.
-        arg = vlist.join('');
-        // Convert the value to a number if it looks like a number.
-        if (arg == "") {
-          value = arg;
-        } else if (isNaN(arg)) {
-          value = arg;
-        } else {
-          value = Number(arg);
-        }
-      }
-      // Deal with a keyless first value.
-      if (!seencolon && firstval && defaultProp && vlist.length) {
-        // value will already have been formed.
-        key = defaultProp;
-      }
-      if (key) {
-        result[key] = value;
-      }
-    }
-    // Now the parsing: just iterate through all the tokens.
-    for (j = 0; j < token.length; ++j) {
-      t = token[j];
-      if (!seencolon) {
-        // Before a colon, remember the first identifier as the key.
-        if (!key && /^[a-zA-Z_-]/.test(t)) {
-          key = t;
-        }
-        // And also look for the colon.
-        if (t == ':') {
-          seencolon = true;
-          vlist.length = 0;
-          continue;
-        }
-      }
-      if (t == ';') {
-        // When a semicolon is seen, form the value and save it.
-        commitvalue();
-        // Then reset the parsing state.
-        key = null;
-        vlist.length = 0;
-        seencolon = false;
-        firstval = false;
-        continue;
-      }
-      // Accumulate all tokens into the vlist.
-      vlist.push(t);
-    }
-    commitvalue();
-    return result;
-  }
-  // Prints a map of options as a parsable string.
-  // The inverse of parseOptionString.
-  function printOptionAsString(obj) {
-    var result = [];
-    function quoted(s) {
-      if (/[\s;]/.test(s)) {
-        if (s.indexOf('"') < 0) {
-          return '"' + s + '"';
-        }
-        return "'" + s + "'";
-      }
-      return s;
-    }
-    for (var k in obj) if (obj.hasOwnProperty(k)) {
-      result.push(k + ':' + quoted(obj[k]) + ';');
-    }
-    return result.join(' ');
   }
 
   // wavetable is a table of names for nonstandard waveforms.
