@@ -7,7 +7,12 @@
 <h2>Bach Minuet BvW 121, in C minor. <span></span></h2>
 
 <p>This web page is a demonstration of the use of musical.js
-with a plain script tag.  Here is the code for this page:</p>
+with a plain script tag.  Other examples here include
+<a href="september.html">September</a> and
+<a href="sonata.html">Sonata</a> and
+<a href="moonlight.html">Moonlight</a>.</p>
+
+<p>Here is the code for this page:</p>
 
 <pre style="background:skyblue"></pre>
 
@@ -68,7 +73,7 @@ var song =
 
 // Play a song from a string in ABC notation.
 inst.play(song,
-  // The optional second argument is a callback when the song is done.
+  // The optional last argument is a callback when the song is done.
   function() {
     document.getElementsByTagName('span')[0].innerHTML = '(Done playing.)';
   }

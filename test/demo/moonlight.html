@@ -26,7 +26,7 @@ var song =
   "R:\n" +
   "K:C#m\n" +
   "[V:0]z8|\n" +
-  "[V:1](3G,CE)(3G,CE)(3G,CE)(3G,CE)|\n" +
+  "[V:1]!pp!(3G,CE)(3G,CE)(3G,CE)(3G,CE)|\n" +
   "[V:2][C,,C,]8|\n" +
   "[V:0]z8|\n" +
   "[V:1](3G,CE)(3G,CE)(3G,CE)(3G,CE)|\n" +
@@ -46,7 +46,7 @@ var song =
 
 // Play a song from a string in ABC notation.
 inst.play(song,
-  // The optional second argument is a callback when the song is done.
+  // The optional last argument is a callback when the song is done.
   function() {
     document.getElementsByTagName('span')[0].innerHTML = '(Done playing.)';
   }

@@ -11,154 +11,53 @@ function isAudioPresent() {
 // All our audio funnels through the same AudioContext with a
 // DynamicsCompressorNode used as the main output, to compress the
 // dynamic range of all audio.  getAudioTop sets this up.
-var audioTop = null;
 function getAudioTop() {
-  if (!audioTop) {
-    var ac = new (global.AudioContext || global.webkitAudioContext),
-        firstTime = null;
-    audioTop = {
-      ac: ac,
-      out: null
-    }
-    resetAudio();
+  if (getAudioTop.audioTop) { return getAudioTop.audioTop; }
+  if (!isAudioPresent()) {
+    return null;
   }
-  return audioTop;
+  var ac = new (global.AudioContext || global.webkitAudioContext);
+  getAudioTop.audioTop = {
+    ac: ac,
+    out: null,
+    currentStart: null
+  };
+  resetAudio();
+  return getAudioTop.audioTop;
 }
 
 // When audio needs to be interrupted globally (e.g., when you press the
 // stop button in the IDE), resetAudio does the job.
 function resetAudio() {
-  if (audioTop) {
+  if (getAudioTop.audioTop) {
+    var atop = getAudioTop.audioTop;
     // Disconnect the top-level node and make a new one.
-    if (audioTop.out) {
-      audioTop.out.disconnect();
-      audioTop.out = null;
+    if (atop.out) {
+      atop.out.disconnect();
+      atop.out = null;
+      atop.currentStart = null;
     }
-    var dcn = audioTop.ac.createDynamicsCompressor();
+    var dcn = atop.ac.createDynamicsCompressor();
     dcn.ratio = 16;
     dcn.attack = 0.0005;
-    dcn.connect(audioTop.ac.destination);
-    audioTop.out = dcn;
+    dcn.connect(atop.ac.destination);
+    atop.out = dcn;
   }
 }
 
 // For precise scheduling of future notes, the AudioContext currentTime is
 // cached and is held constant until the script releases to the event loop.
-var audioDelay = 0.00;    // Adjust to delay the start of any sound.
 function audioCurrentStartTime() {
-  if (audioTop.currentStart != null) {
-    return audioTop.currentStart;
+  var atop = getAudioTop();
+  if (atop.currentStart != null) {
+    return atop.currentStart;
   }
-  audioTop.currentStart = audioTop.ac.currentTime + audioDelay;
-  setTimeout(function() { audioTop.currentStart = null; }, 0);
-  return audioTop.currentStart;
-}
-
-// An options string looks like a (simplified) CSS properties string,
-// of the form prop:value;prop:value; etc.  If defaultProp is supplied
-// then the string can begin with "value" (i.e., value1;prop:value2)
-// and that first value will be interpreted as defaultProp:value1.
-// Some rudimentary quoting can be done, e.g., value:"prop", etc.
-function parseOptionString(str, defaultProp) {
-  var result = {}, key = null;
-  if (str == null) { return result; }
-  if (typeof(str) == 'object') {
-    for (key in str) if (str.hasOwnProperty(key)) {
-      result[key] = str[key];
-    }
-    return result;
-  }
-  str = '' + str;
-  // Each token is an identifier, a quoted or parenthesized string,
-  // a run of whitespace, or any other non-matching character.
-  var token = str.match(/[-a-zA-Z_][-\w]*|"[^"]*"|'[^']'|\([^()]*\)|\s+|./g),
-      t, value, arg,
-      seencolon = false, vlist = [], firstval = true;
-
-  // While parsing, commitvalue() validates and unquotes a prop:value
-  // pair and commits it to the result.
-  function commitvalue() {
-    // Trim whitespace
-    while (vlist.length && /^\s/.test(vlist[vlist.length - 1])) {vlist.pop();}
-    while (vlist.length && /^\s/.test(vlist[0])) { vlist.shift(); }
-    if (vlist.length == 1 && (
-          /^".*"$/.test(vlist[0]) || /^'.*'$/.test(vlist[0]))) {
-      // Unquote quoted string.
-      value = vlist[0].substr(1, vlist[0].length - 2);
-    } else if (vlist.length == 2 && vlist[0] == 'url' &&
-        /^(.*)$/.test(vlist[1])) {
-      // Remove url(....) from around a string.
-      value = vlist[1].substr(1, vlist[1].length - 2);
-    } else {
-      // Form the string for the value.
-      arg = vlist.join('');
-      // Convert the value to a number if it looks like a number.
-      if (arg == "") {
-        value = arg;
-      } else if (isNaN(arg)) {
-        value = arg;
-      } else {
-        value = Number(arg);
-      }
-    }
-    // Deal with a keyless first value.
-    if (!seencolon && firstval && defaultProp && vlist.length) {
-      // value will already have been formed.
-      key = defaultProp;
-    }
-    if (key) {
-      result[key] = value;
-    }
-  }
-  // Now the parsing: just iterate through all the tokens.
-  for (j = 0; j < token.length; ++j) {
-    t = token[j];
-    if (!seencolon) {
-      // Before a colon, remember the first identifier as the key.
-      if (!key && /^[a-zA-Z_-]/.test(t)) {
-        key = t;
-      }
-      // And also look for the colon.
-      if (t == ':') {
-        seencolon = true;
-        vlist.length = 0;
-        continue;
-      }
-    }
-    if (t == ';') {
-      // When a semicolon is seen, form the value and save it.
-      commitvalue();
-      // Then reset the parsing state.
-      key = null;
-      vlist.length = 0;
-      seencolon = false;
-      firstval = false;
-      continue;
-    }
-    // Accumulate all tokens into the vlist.
-    vlist.push(t);
-  }
-  commitvalue();
-  return result;
-}
-
-// Prints a map of options as a parsable string.
-// The inverse of parseOptionString.
-function printOptionAsString(obj) {
-  var result = [];
-  function quoted(s) {
-    if (/[\s;]/.test(s)) {
-      if (s.indexOf('"') < 0) {
-        return '"' + s + '"';
-      }
-      return "'" + s + "'";
-    }
-    return s;
-  }
-  for (var k in obj) if (obj.hasOwnProperty(k)) {
-    result.push(k + ':' + quoted(obj[k]) + ';');
-  }
-  return result.join(' ');
+  // A delay could be added below to introduce a universal delay in
+  // all beginning sounds (without skewing durations for scheduled
+  // sequences).
+  atop.currentStart = atop.ac.currentTime /* + 0.0 delay */;
+  setTimeout(function() { atop.currentStart = null; }, 0);
+  return atop.currentStart;
 }
 
 // All further details of audio handling are encapsulated in the Instrument
@@ -180,73 +79,100 @@ var Instrument = (function() {
   //
   // The reason for this queuing is to reduce the complexity of the
   // node graph sent to WebAudio: at any time, WebAudio is only
-  // responsible for about 3 seconds of music.  If too many nodes
-  // are sent to WebAudio at once, audio output distorts badly.
+  // responsible for about 2 seconds of music.  If a graph with too
+  // too many nodes is sent to WebAudio at once, output distorts badly.
   function Instrument(options) {
-    this._timbre = parseTimbre(options);  // The default timbre.
-    this._queue = [];                     // A queue of future tones to play.
-    this._minQueueTime = Infinity;        // The earliest time in _queue.
-    this._maxScheduledTime = 0;           // The latest time in _queue.
-    this._unsortedQueue = false;          // True if _queue is unsorted.
-    this._startSet = [];                  // Unstarted tones sent to WebAudio.
-    this._finishSet = {};                 // Started tones playing in WebAudio.
-    this._cleanupSet = [];                // Tones waiting for cleanup.
-    this._conflictCount = 0;              // Counter for early ended tones.
-    this._callbackSet = [];               // A set of scheduled callbacks.
-    this._handlers = {};                  // 'noteon' and 'noteoff' handlers.
-    this._now = null;                     // A cached current-time value.
+    this._timbre = makeTimbre(options);  // The instrument's timbre.
+    this._queue = [];               // A queue of future tones to play.
+    this._minQueueTime = Infinity;  // The earliest time in _queue.
+    this._maxScheduledTime = 0;     // The latest time in _queue.
+    this._unsortedQueue = false;    // True if _queue is unsorted.
+    this._startSet = [];            // Unstarted tones already sent to WebAudio.
+    this._finishSet = {};           // Started tones playing in WebAudio.
+    this._cleanupSet = [];          // Tones waiting for cleanup.
+    this._callbackSet = [];         // A set of scheduled callbacks.
+    this._handlers = {};            // 'noteon' and 'noteoff' handlers.
+    this._now = null;               // A cached current-time value.
     if (isAudioPresent()) {
-      this.silence();                     // Initializes top-level audio node.
+      this.silence();               // Initializes top-level audio node.
     }
   }
 
-  Instrument.bufferSecs = 3;     // Seconds ahead to put notes in WebAudio.
+  Instrument.dequeueTime = 0.5;  // Seconds before an event to reexamine queue.
+  Instrument.bufferSecs = 2;     // Seconds ahead to put notes in WebAudio.
   Instrument.toneLength = 10;    // Default duration of a tone.
   Instrument.cleanupDelay = 0.1; // Silent time before disconnecting gain nodes.
-  Instrument.nowDelay = 0.00;    // Adjust to delay the start of any sound.
 
   // Sets the default timbre for the instrument.  See defaultTimbre.
   Instrument.prototype.setTimbre = function(t) {
-    this._timbre = parseTimbre(t);
+    this._timbre = makeTimbre(t);     // Saves a copy.
   };
-  // Returns the default timbre for the instrument as a string.
+  // Returns the default timbre for the instrument as an object.
   Instrument.prototype.getTimbre = function(t) {
-    return printOptionAsString(this._timbre);
+    return makeTimbre(this._timbre);  // Makes a copy.
   };
-  // Silences the instrument immediately by reinitializing the audio system
-  // and emptying the scheduler.  Carefully notifies all notes that have
-  // started but not yet finished, and sequences that are awaiting
-  // scheduled callbacks.  Doesn't notify notes that have not yet started.
+
+  // Sets the overall volume for the instrument immediately.
+  Instrument.prototype.setVolume = function(v) {
+    // Without an audio system, volume cannot be set.
+    if (!this._out) { return; }
+    return this._out.gain.value = v;
+  };
+
+  // Sets the overall volume for the instrument.
+  Instrument.prototype.setVolume = function(v) {
+    // Without an audio system, volume is stuck at zero.
+    if (!this._out) { return 0.0; }
+    return this._out.gain.value;
+  };
+
+  // Silences the instrument immediately by reinitializing the audio
+  // graph for this instrument and emptying or flushing all queues in the
+  // scheduler.  Carefully notifies all notes that have started but not
+  // yet finished, and sequences that are awaiting scheduled callbacks.
+  // Does not notify notes that have not yet started.
   Instrument.prototype.silence = function() {
-    var j;
+    var j, finished, callbacks, initvolume = 1;
+
     // Clear future notes.
     this._queue.length = 0;
     this._minQueueTime = Infinity;
     this._maxScheduledTime = 0;
+
     // Don't notify notes that haven't started yet.
     this._startSet.length = 0;
+
     // Flush finish callbacks that are promised.
-    for (j in this._finishSet) if (this._finishSet.hasOwnProperty(j)) {
-      this._trigger('noteoff', this._finishSet[j]);
-    }
+    finished = this._finishSet;
     this._finishSet = {};
+
     // Flush one-time callacks that are promised.
-    for (j = 0; j < this._callbackSet.length; ++j) {
-      this._callbackSet[j].callback();
-    }
-    this._callbackSet.length = 0;
+    callbacks = this._callbackSet;
+    this._callbackSet = [];
+
+    // Disconnect the audio graph for this instrument.
     if (this._out) {
       this._out.disconnect();
+      initvolume = this._out.gain.value;
     }
+
+    // Reinitialize the audio graph: all audio for the instrument
+    // multiplexes through a single gain node with a master volume.
     this._atop = getAudioTop();
     this._out = this._atop.ac.createGain();
-    this._out.gain.value = this._timbre.gain;
+    this._out.gain.value = initvolume;
     this._out.connect(this._atop.out);
+
+    // As a last step, call all promised notifications.
+    for (j in finished) { this._trigger('noteoff', finished[j]); }
+    for (j = 0; j < callbacks.length; ++j) { callbacks[j].callback(); }
   };
-  // Future notes should be scheduled relative to now(), which provides
-  // access to audioCurrentStartTime(), a time that holds steady until.
-  // until the script releases to the event loop.  (_doPoll clears the
-  // cached _now).
+
+  // Future notes are scheduled relative to now(), which provides
+  // access to audioCurrentStartTime(), a time that holds steady
+  // until the script releases to the event loop.  When _now is
+  // non-null, it indicates that scheduling is already in progress.
+  // The timer-driven _doPoll function clears the cached _now.
   Instrument.prototype.now = function() {
     if (this._now != null) {
       return this._now;
@@ -255,20 +181,22 @@ var Instrument = (function() {
     this._now = audioCurrentStartTime();
     return this._now;
   };
+
   // Register an event handler.  Done without jQuery to reduce dependencies.
-  Instrument.prototype.on = function(ev, cb) {
-    if (!this._handlers.hasOwnProperty(ev)) {
-      this._handlers[ev] = [];
+  Instrument.prototype.on = function(eventname, cb) {
+    if (!this._handlers.hasOwnProperty(eventname)) {
+      this._handlers[eventname] = [];
     }
-    this._handlers[ev].push(cb);
+    this._handlers[eventname].push(cb);
   };
+
   // Unregister an event handler.  Done without jQuery to reduce dependencies.
-  Instrument.prototype.off = function(ev, cb) {
-    if (this._handlers.hasOwnProperty(ev)) {
+  Instrument.prototype.off = function(eventname, cb) {
+    if (this._handlers.hasOwnProperty(eventname)) {
       if (!cb) {
-        this._handlers[ev] = [];
+        this._handlers[eventname] = [];
       } else {
-        var j, hunt = this._handlers[ev];
+        var j, hunt = this._handlers[eventname];
         for (j = 0; j < hunt.length; ++j) {
           if (hunt[j] === cb) {
             hunt.splice(j, 1);
@@ -278,16 +206,26 @@ var Instrument = (function() {
       }
     }
   };
+
   // Trigger an event, notifying any registered handlers.
-  Instrument.prototype._trigger = function(ev, record) {
-    var cb = this._handlers[ev], j;
-    if (!cb) {
+  Instrument.prototype._trigger = function(eventname, record) {
+    var cb = this._handlers[eventname], j;
+    if (!cb) { return; }
+    if (cb.length == 1) {
+      // Special, common case of one handler: no copy needed.
+      cb[0](record);
       return;
     }
+    // Copy the array of callbacks before iterating, because the
+    // main this._handlers copy could be changed by a handler.
+    // You get notified if-and-only-if you are registered
+    // at the starting moment of _trigger.
+    cb = cb.slice();
     for (j = 0; j < cb.length; ++j) {
       cb[j](record);
     }
   };
+
   // Tells the WebAudio API to play a tone (now or soon).  The passed
   // record specifies a start time and release time, an ADSR envelope,
   // and other timbre parameters.  This function sets up a WebAudio
@@ -339,44 +277,13 @@ var Instrument = (function() {
         f.connect(g);
       }
       // Hook up the main oscillator.
-      function makeOscillator() {
-        var o = ac.createOscillator();
-        try {
-          if (wavetable.hasOwnProperty(timbre.wave)) {
-            // Use a customized wavetable.
-            pwave = wavetable[timbre.wave].wave;
-            if (wavetable[timbre.wave].freq) {
-              bwf = 0;
-              // Look for a higher-frequency variant.
-              for (k in wavetable[timbre.wave].freq) {
-                wf = Number(k);
-                if (record.frequency > wf && wf > bwf) {
-                  bwf = wf;
-                  pwave = wavetable[timbre.wave].freq[bwf];
-                }
-              }
-            }
-            o.setPeriodicWave(pwave);
-          } else {
-            o.type = timbre.wave;
-          }
-        } catch(e) {
-          if (window.console) { window.console.log(e); }
-          // If unrecognized, just use square.
-          // TODO: support "noise" or other wave shapes.
-          o.type = 'square';
-        }
-        return o;
-      }
-      o = makeOscillator();
-      o.frequency.value = record.frequency;
+      o = makeOscillator(ac, timbre.wave, record.frequency);
       o.connect(f);
       o.start(starttime);
       o.stop(stoptime);
       // Hook up a detuned oscillator.
       if (doubled) {
-        o2 = makeOscillator();
-        o2.frequency.value = record.frequency * timbre.detune;
+        o2 = makeOscillator(ac, timbre.wave, record.frequency * timbre.detune);
         o2.connect(f);
         o2.start(starttime);
         o2.stop(stoptime);
@@ -511,7 +418,7 @@ var Instrument = (function() {
       }
     }
     // Notify about any notes finishing.
-    for (freq in this._finishSet) if (this._finishSet.hasOwnProperty(freq)) {
+    for (freq in this._finishSet) {
       record = this._finishSet[freq];
       when = record.time + record.duration;
       if (when <= now) {
@@ -567,19 +474,21 @@ var Instrument = (function() {
   };
   // Schedules the next _doPoll call by examining times in the various
   // sets and determining the soonest event that needs _doPoll processing.
-  Instrument.prototype._startPollTimer = function(soon) {
+  Instrument.prototype._startPollTimer = function(immediate) {
     var instrument = this,
         earliest = Infinity, j, delay;
     if (this._pollTimer) {
       if (this._now != null) {
-        // We have already set the poll timer to come back instantly.
+        // When _now is set (as during a loop setting up sequencing),
+        // we have already set the poll timer to come back instantly,
+        // so the timer does not need to be updated.
         return;
       }
       // We might have updated information: clear the timer and look again.
       clearTimeout(this._pollTimer);
       this._pollTimer = null;
     }
-    if (soon) {
+    if (immediate) {
       // Timer due to now() call: schedule immediately.
       earliest = 0;
     } else {
@@ -588,7 +497,7 @@ var Instrument = (function() {
         earliest = Math.min(earliest, this._startSet[j].time);
       }
       // Timer due to notes finishing: wake up for 'noteoff' notification.
-      for (j in this._finishSet) if (this._finishSet.hasOwnProperty(j)) {
+      for (j in this._finishSet) {
         earliest = Math.min(
           earliest, this._finishSet[j].time + this._finishSet[j].duration);
       }
@@ -600,23 +509,27 @@ var Instrument = (function() {
       if (this._cleanupSet.length > 0) {
         earliest = Math.min(earliest, this._cleanupSet[0].cleanuptime + 1);
       }
-      // Timer due to sequencer events: subtract a second to stay ahead.
-      earliest = Math.min(earliest, this._minQueueTime - 1);
+      // Timer due to sequencer events: subtract a little time to stay ahead.
+      earliest = Math.min(
+         earliest, this._minQueueTime - Instrument.dequeueTime);
     }
     delay = Math.max(0, earliest - this._atop.ac.currentTime);
-    if (isNaN(delay)) {
-      return;
-    }
-    if (delay == Infinity) { return; }
+
+    // If there are no future events, then we do not need a timer.
+    if (isNaN(delay) || delay == Infinity) { return; }
+
+    // Use the Javascript timer to wake up at the right moment.
     this._pollTimer = setTimeout(
         function() { instrument._doPoll(); }, Math.round(delay * 1000));
   };
+
   // The low-level tone function.
   Instrument.prototype.tone =
   function(pitch, velocity, duration, delay, timbre) {
-    if (!this._atop) {
-      return { release: (function() {}) };
-    }
+    // If audio is not present, this is a no-op.
+    if (!this._atop) { return; }
+
+    // Convert pitch from various formats to Hz frequency and a midi num.
     var midi, frequency;
     if (!pitch) { pitch = 'C'; }
     if (isNaN(pitch)) {
@@ -631,6 +544,8 @@ var Instrument = (function() {
         midi = frequencyToMidi(frequency);
       }
     }
+
+    // Create the record for a tone.
     var ac = this._atop.ac,
         now = this.now(),
         time = now + (delay || 0),
@@ -647,9 +562,12 @@ var Instrument = (function() {
           oscillators: null,
           cleanuptime: Infinity
         };
+
     if (time < now + Instrument.bufferSecs) {
+      // The tone starts soon!  Give it directly to WebAudio.
       this._makeSound(record);
     } else {
+      // The tone is later: queue it.
       if (!this._unsortedQueue && this._queue.length &&
           time < this._queue[this._queue.length -1].time) {
         this._unsortedQueue = true;
@@ -669,7 +587,7 @@ var Instrument = (function() {
         done = null,
         opts = {}, subfile,
         abcfile, argindex, tempo, timbre, k, delay, maxdelay = 0, attenuate,
-        voicename, stems, ni, vn, j, stem, note, beatsecs, secs, files = [];
+        voicename, stems, ni, vn, j, stem, note, beatsecs, secs, v, files = [];
     // Look for continuation as last argument.
     if (args.length && 'function' == typeof(args[args.length - 1])) {
       done = args.pop();
@@ -681,6 +599,7 @@ var Instrument = (function() {
     // Look for options as first object.
     argindex = 0;
     if ('object' == typeof(args[0])) {
+      // Copy own properties into an options object.
       for (k in args[0]) if (args[0].hasOwnProperty(k)) {
         opts[k] = args[0][k];
       }
@@ -712,9 +631,9 @@ var Instrument = (function() {
     for (k = 0; k < files.length; ++k) {
       abcfile = files[k];
       // Each file can have multiple voices (e.g., left and right hands)
-      for (vn in abcfile.voice) if (abcfile.voice.hasOwnProperty(vn)) {
+      for (vn in abcfile.voice) {
         // Each voice could have a separate timbre.
-        timbre = parseTimbre(opts.timbre || abcfile.voice[vn].timbre ||
+        timbre = makeTimbre(opts.timbre || abcfile.voice[vn].timbre ||
            abcfile.timbre || this._timbre);
         // Each voice has a series of stems (notes or chords).
         stems = abcfile.voice[vn].stems;
@@ -738,9 +657,11 @@ var Instrument = (function() {
               secs = Math.min(Math.min(secs, beatsecs / 16),
                   timbre.attack + timbre.decay);
             }
+            v = (note.velocity || 1) * attenuate;
+            // This is innsermost part of the inner loop!
             this.tone(                     // Play the tone:
               note.pitch,                  // at the given pitch
-              note.velocity || attenuate,  // with the given volume
+              v,                           // with the given volume
               secs,                        // for the given duration
               delay,                       // starting at the proper time
               timbre);                     // with the selected timbre
@@ -758,45 +679,16 @@ var Instrument = (function() {
     }
   };
 
-  // The default sound is a square wave with a pretty quick decay to zero.
-  var defaultTimbre = parseOptionString(
-      "wave:square;gain:0.5;" +
-      "attack:0.002;decay:0.4;sustain:0;release:0.1;" +
-      "cutoff:0;cutfollow:0;resonance:0;detune:0");
-
-
-  // A timbre can specify any of the fields of defaultTimbre; any
-  // unspecified fields are treated as they are set in defaultTimbre.
-  function parseTimbre(options) {
-    if (!options) {
-      options = {};
-    } else if (typeof(options) == 'string') {
-      options = parseOptionString(options, 'wave');
-    }
-    var result = {}, key, wt = wavetable[options.wave];
-    for (key in defaultTimbre) {
-      if (options.hasOwnProperty(key)) {
-        result[key] = options[key];
-      } else if (wt && wt.defs && wt.defs.hasOwnProperty(key)) {
-        result[key] = wt.defs[key];
-      } else{
-        result[key] = defaultTimbre[key];
-      }
-    }
-    return result;
-  }
-
   // Parses an ABC file to an object with the following structure:
   // {
   //   X: value from the X: lines in header (\n separated for multiple values)
   //   K: value from the K: lines in header, etc.
   //   tempo: Q: line parsed as beatsecs
-  //   timbre: ... I:timbre line as parsed by parseTimbre
+  //   timbre: ... I:timbre line as parsed by makeTimbre
   //   voice: {
   //     myname: { // voice with id "myname"
   //       V: value from the V:myname lines
   //       stems: [...] as parsed by parseABCstems
-  //       timbre: ... I:timbre line as parsed by parseTimbre
   //    }
   //  }
   // }
@@ -828,16 +720,16 @@ var Instrument = (function() {
         delete result.voice[context.id];
         context.id = id;
         result.voice[id] = context;
-        accent = {};
+        accent = context.accent;
       } else if (result.voice.hasOwnProperty(id)) {
         // Resume a named voice.
         context = result.voice[id];
-        accent = {};
+        accent = context.accent;
       } else {
         // Start a new voice.
-        context = { id: id };
+        context = { id: id, accent: {} };
         result.voice[id] = context;
-        accent = {};
+        accent = context.accent;
       }
     }
     // For picking a default voice, looks for the first voice name.
@@ -870,12 +762,6 @@ var Instrument = (function() {
             break;
           case 'Q':
             parseTempo(header[2], context);
-            break;
-          case 'I':
-            timbre = /^timbre\s+(.*)$/.exec(header[2]);
-            if (timbre) {
-              context.timbre = parseTimbre(timbre);
-            }
             break;
         }
         // All headers (including unrecognized ones) are
@@ -1067,7 +953,7 @@ var Instrument = (function() {
   // The general strategy is to tokenize the line using the following
   // regexp, and then to delegate processing of single notes and
   // stems (sets of notes between [...]) to parseStem.
-  var ABCtoken = /(?:^\[V:[^\]\s]*\])|\s+|%[^\n]*|![^!]*!|\[|\]|>+|<+|(?:(?:\^\^|\^|__|_|=|)[A-Ga-g](?:,+|'+|))|\(\d+(?::\d+){0,2}|\d*\/\d+|\d+\/?|\/+|[xzXZ]|\[?\|\]?|:?\|:?|::|./g;
+  var ABCtoken = /(?:^\[V:[^\]\s]*\])|\s+|%[^\n]*|![^\s!:|\[\]]*!|\+[^+|!]*\+|\[|\]|>+|<+|(?:(?:\^\^|\^|__|_|=|)[A-Ga-g](?:,+|'+|))|\(\d+(?::\d+){0,2}|\d*\/\d+|\d+\/?|\/+|[xzXZ]|\[?\|\]?|:?\|:?|::|./g;
   function parseABCNotes(str, key, accent, out) {
     var tokens = str.match(ABCtoken), result = [], parsed = null,
         index = 0, dotted = 0, beatlet = null, t;
@@ -1076,7 +962,7 @@ var Instrument = (function() {
     }
     while (index < tokens.length) {
       // Ignore %comments and !markings!
-      if (/^[\s%!]/.test(tokens[index])) { index++; continue; }
+      if (/^[\s%]/.test(tokens[index])) { index++; continue; }
       // Grab a voice id out of [V:id]
       if (/^\[V:\S*\]$/.test(tokens[index])) {
         out.voiceid = tokens[index].substring(3, tokens[index].length - 1);
@@ -1093,13 +979,21 @@ var Instrument = (function() {
         continue;
       }
       if (/^\(\d+(?::\d+)*/.test(tokens[index])) {
-        beatlet = parseBeatlet(tokens[index]);
+        beatlet = parseBeatlet(tokens[index++]);
+        continue;
+      }
+      if (/^[!+].*[!+]$/.test(tokens[index])) {
+        parseDecoration(tokens[index++], accent);
+        continue;
       }
 
       // Handle measure markings by clearing accidentals.
       if (/\|/.test(tokens[index])) {
-        for (t in accent) if (accent.hasOwnProperty(t)) {
-          delete accent[t];
+        for (t in accent) {
+          if (t.length == 1) {
+            // Single-letter accent properties are note accidentals.
+            delete accent[t];
+          }
         }
         index++;
         continue;
@@ -1172,12 +1066,35 @@ var Instrument = (function() {
       count: duration
     };
   }
+  // Parse !ppp! markings.
+  function parseDecoration(token, accent) {
+    if (token.length < 2) { return; }
+    token = token.substring(1, token.length - 1);
+    switch (token) {
+      case 'pppp': case 'ppp':
+        accent.dynamics = 0.2; break;
+      case 'pp':
+        accent.dynamics = 0.4; break;
+      case 'p':
+        accent.dynamics = 0.6; break;
+      case 'mp':
+        accent.dynamics = 0.8; break;
+      case 'mf':
+        accent.dynamics = 1.0; break;
+      case 'f':
+        accent.dynamics = 1.2; break;
+      case 'ff':
+        accent.dynamics = 1.4; break;
+      case 'fff': case 'ffff':
+        accent.dynamics = 1.5; break;
+    }
+  }
   // Parses a stem, which may be a single note, or which may be
   // a chorded note.
   function parseStem(tokens, index, key, accent) {
     var note = [],
         duration = '', staccato = false,
-        noteDuration, noteTime,
+        noteDuration, noteTime, velocity,
         lastNote = null, minStemTime = Infinity, j;
     // A single staccato marking applies to the entire stem.
     if (index < tokens.length && '.' == tokens[index]) {
@@ -1189,8 +1106,8 @@ var Instrument = (function() {
       index++;
       // Scan notes within the chord.
       while (index < tokens.length) {
-        // Ignore !markings! and space and %comments.
-        if (/^[\s%!]/.test(tokens[index])) {
+        // Ignore and space and %comments.
+        if (/^[\s%]/.test(tokens[index])) {
           index++;
           continue;
         }
@@ -1289,6 +1206,12 @@ var Instrument = (function() {
         note[j].tie = true;
       }
     }
+    if (accent.dynamics) {
+      velocity = accent.dynamics;
+      for (j = 0; j < note.length; ++j) {
+        note[j].velocity = velocity;
+      }
+    }
     return {
       index: index,
       stem: {
@@ -1369,6 +1292,79 @@ var Instrument = (function() {
     return i + (n / d);
   }
 
+  // The default sound is a square wave with a pretty quick decay to zero.
+  var defaultTimbre = {
+    wave: 'square',   // Oscillator type.
+    gain: 0.3,        // Overall gain at maximum attack.
+    attack: 0.002,    // Attack time at the beginning of a tone.
+    decay: 0.4,       // Rate of exponential decay after attack.
+    sustain: 0,       // Portion of gain to sustain indefinitely.
+    release: 0.1,     // Release time after a tone is done.
+    cutoff: 0,        // Low-pass filter cutoff frequency.
+    cutfollow: 0,     // Cutoff adjustment, a multiple of oscillator freq.
+    resonance: 0,     // Low-pass filter resonance.
+    detune: 0         // Detune factor for a second oscillator.
+  };
+
+  // Norrmalizes a timbre object by making a copy that has exactly
+  // the right set of timbre fields, defaulting when needed.
+  // A timbre can specify any of the fields of defaultTimbre; any
+  // unspecified fields are treated as they are set in defaultTimbre.
+  function makeTimbre(options) {
+    if (!options) {
+      options = {};
+    }
+    if (typeof(options) == 'string') {
+      // Abbreviation: name a wave to get a default timbre for that wave.
+      options = { wave: options };
+    }
+    var result = {}, key, wt = wavetable[options.wave];
+    for (key in defaultTimbre) {
+      if (options.hasOwnProperty(key)) {
+        result[key] = options[key];
+      } else if (wt && wt.defs && wt.defs.hasOwnProperty(key)) {
+        result[key] = wt.defs[key];
+      } else{
+        result[key] = defaultTimbre[key];
+      }
+    }
+    return result;
+  }
+
+  // This utility function creates an oscillator at the given frequency
+  // and the given wavename.  It supports lookups in a static wavetable,
+  // defined right below.
+  function makeOscillator(ac, wavename, freq) {
+    var o = ac.createOscillator();
+    try {
+      if (wavetable.hasOwnProperty(wavename)) {
+        // Use a customized wavetable.
+        pwave = wavetable[wavename].wave;
+        if (wavetable[wavename].freq) {
+          bwf = 0;
+          // Look for a higher-frequency variant.
+          for (k in wavetable[wavename].freq) {
+            wf = Number(k);
+            if (freq > wf && wf > bwf) {
+              bwf = wf;
+              pwave = wavetable[wavename].freq[bwf];
+            }
+          }
+        }
+        o.setPeriodicWave(pwave);
+      } else {
+        o.type = wavename;
+      }
+    } catch(e) {
+      if (window.console) { window.console.log(e); }
+      // If unrecognized, just use square.
+      // TODO: support "noise" or other wave shapes.
+      o.type = 'square';
+    }
+    o.frequency.value = freq;
+    return o;
+  }
+
   // wavetable is a table of names for nonstandard waveforms.
   // The table maps names to objects that have wave: and freq:
   // properties. The wave: property is a PeriodicWave to use
@@ -1441,20 +1437,23 @@ var Instrument = (function() {
              -0.000005, 0.000005, -0.000023, 0.000037, -0.000021, 0.000022,
              -0.000006, 0.000005, -0.000004, 0.000014, -0.000007, 0.000012],
       // How to adjust the harmonics for the higest notes.
-      mult: [1, 5, 0.9, 0.08, 0.05, 0.05, 0.05, 0.02, .2, .2, .2, 0.05, 0.02],
+      mult: [1, 1, 0.18, 0.016, 0.01, 0.01, 0.01, 0.004,
+                0.014, 0.02, 0.014, 0.004, 0.002, 0.00001],
       // The frequencies at which to interpolate the harmonics.
-      freq: [80, 90, 110, 140, 180, 240, 720, 1360],
+      freq: [65, 80, 100, 135, 180, 240, 620, 1360],
       // The default filter settings to use for the piano wave.
-      defs: parseOptionString(
-          "wave:piano;gain:0.5;" +
-          "attack:0.002;decay:0.4;sustain:0.005;release:0.1;" +
-          "cutoff:700;cutfollow:0.1;resonance:1;detune:1.001")
+      // TODO: this approach attenuates low notes too much -
+      // this should be fixed.
+      defs: { wave: 'piano', gain: 0.3,
+              attack: 0.002, decay: 0.4, sustain: 0.005, release: 0.1,
+              cutoff: 800, cutfollow: 0.1, resonance: 1, detune: 1.001 }
     }
   });
 
   return Instrument;
 })();
 
+// The package implementation. Right now, just one class.
 var impl = {
   Instrument: Instrument
 };
@@ -1467,7 +1466,7 @@ if (module && module.exports) {
   define(function() { return impl; });
 } else {
   // Plain script tag usage: stick Instrument on the window object.
-  for (var exp in impl) if (impl.hasOwnProperty(exp)) {
+  for (var exp in impl) {
     global[exp] = impl[exp];
   }
 }

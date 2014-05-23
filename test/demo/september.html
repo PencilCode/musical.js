@@ -19,7 +19,7 @@ more ABC notation features, see <a href="minuet.html">minuet</a>.
 <script>
 
 // Select a timbre that sounds like an electric piano.
-var inst = new Instrument('piano'); // ;cutfollow:0;sustain:0.005;xdetune:1.001');
+var inst = new Instrument('piano');
 
 // The song below is written in ABC notation.  More on abc
 // notation can be found at http://abcnotation.com/.
@@ -209,7 +209,7 @@ inst.play(
   { tempo:100 },
   // Next comes one or more songs (to start at once).
   song,
-  // The optional second argument is a callback when the song is done.
+  // The optional last argument is a callback when the song is done.
   function() {
     document.getElementsByTagName('span')[0].innerHTML = '(Done playing.)';
   }

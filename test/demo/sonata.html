@@ -45,7 +45,7 @@ var song =
 inst.play(
   // Next comes one or more songs (to start at once).
   song,
-  // The optional second argument is a callback when the song is done.
+  // The optional last argument is a callback when the song is done.
   function() {
     document.getElementsByTagName('span')[0].innerHTML = '(Done playing.)';
   }
