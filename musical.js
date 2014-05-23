@@ -107,6 +107,7 @@ var Instrument = (function() {
   Instrument.prototype.setTimbre = function(t) {
     this._timbre = makeTimbre(t);     // Saves a copy.
   };
+
   // Returns the default timbre for the instrument as an object.
   Instrument.prototype.getTimbre = function(t) {
     return makeTimbre(this._timbre);  // Makes a copy.
@@ -116,11 +117,13 @@ var Instrument = (function() {
   Instrument.prototype.setVolume = function(v) {
     // Without an audio system, volume cannot be set.
     if (!this._out) { return; }
-    return this._out.gain.value = v;
+    if (!isNaN(v)) {
+      this._out.gain.value = v;
+    }
   };
 
   // Sets the overall volume for the instrument.
-  Instrument.prototype.setVolume = function(v) {
+  Instrument.prototype.getVolume = function(v) {
     // Without an audio system, volume is stuck at zero.
     if (!this._out) { return 0.0; }
     return this._out.gain.value;
