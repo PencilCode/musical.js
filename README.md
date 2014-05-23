@@ -21,11 +21,15 @@ Three main functions in the API:
 
 * `instrument = new Instrument([timbre])` makes an instrument. Timbre
   is optional and defaults to a boring square wave sound.  Timbre
-  may be a WebAudio oscillator wave type ("square", "sine", etc),
-  or a "piano" wave shape that is coded in this libarary.
-  It may also specify (as object properties or in a CSS-like
-  string) gain, attack, decay, sustain, release, cutoff, cutfollow,
-  and detune; these allow basic subtractive analog synthesis.
+  may be a WebAudio oscillator wave type ("square", "sine", "sawtooth",
+  "triangle"), or a "piano" wave shape that is coded in this libarary.
+  It may also specify (as object properties)
+  gain (generally 0-1), attack (seconds for initial attack),
+  decay (seconds for 1/e decay), sustain (amplitude of sustain),
+  release (seconds for silence after release), cutoff (frequency
+  of a lowapss filter), cutfollow (multiple of main frequency to add
+  to lowpass cutoff), and detune (relative frequency of a second
+  detuned oscillator); these allow basic subtractive analog synthesis.
   Timbre can be changed later using instrument.setTimbre.  See an
   example below.
 
@@ -71,15 +75,16 @@ setTimeout(function() {
 
 function firstsong() {
   // Play "Mary Had a Little Lamb"
-  inst.play({tempo:200},"AGFG|AAA2|GGG2|AAA2|AGFG|AAAA|GGAG|F4|z4", whendone)
+  inst.play({tempo:200},
+      "AGFG|AAA2|GGG2|AAA2|AGFG|AAAA|GGAG|F4|z4", whendone)
 }
 
 // Do this after Mary is done.
 function whendone() {
   // Play "Stairway", which picks out a few chords.
-  inst.setTimbre("wave:sawtooth;" +
-      "attack:0.005;decay:0.2;release:0.2;" +
-      "cutoff:350;cutfollow:0.2;resonance:3");
+  inst.setTimbre({wave:'sawtooth', gain:0.15,
+      attack:0.008, decay:0.2, release:0.2,
+      cutoff:0, cutfollow:20, resonance:3});
   inst.play("F^Gcf|[gE]c^G|g[^g^D]c|^G^g[dD]|" +
              "^AFd|[^C=c]^GF|^G21/3c^GF|[G^DG,][F,F^G][^GFF,]2z4", whendone2);
 }
@@ -87,7 +92,7 @@ function whendone() {
 // Do this after Stairway is done.
 function whendone2() {
   // Change the inst to sound more like a piano.
-  inst.setTimbre("wave:piano;detune:1.001");
+  inst.setTimbre({wave:"piano"});
   // Then play a couple bars of a Beethoven Sonata, using ABC notation
   // clipped from the web.  Note support for chords, beats, accidentals,
   // key signatures, meter and tempo markings, ties, and so on.
@@ -112,7 +117,6 @@ function whendone2() {
     "_A,4-A,3/!2!A,/!1!G,3/=F,/ E,4-E,2z2|\n"
   );
 }
-
 &lt;/script&gt;
 </pre>
 
