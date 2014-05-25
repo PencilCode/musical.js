@@ -1386,7 +1386,15 @@ var Instrument = (function() {
         real[j] = data.real[j];
         imag[j] = data.imag[j];
       }
-      return ac.createPeriodicWave(real, imag);
+      try {
+        // Latest API naming.
+        return ac.createPeriodicWave(real, imag);
+      } catch (e) { }
+      try {
+        // Earlier API naming.
+        return ac.createWaveTable(real, imag);
+      } catch (e) { }
+      return null;
     }
     function makeMultiple(data, mult, amt) {
       var result = { real: [], imag: [] }, j, n = data.real.length, m;
@@ -1397,11 +1405,12 @@ var Instrument = (function() {
       }
       return result;
     }
-    var result = {}, k, d, n, j, ff, record, pw, ac = getAudioTop().ac;
+    var result = {}, k, d, n, j, ff, record, wave, pw, ac = getAudioTop().ac;
     for (k in wavedata) {
-      record = result[k] = {};
       d = wavedata[k];
-      record.wave = makePeriodicWave(ac, d);
+      wave = makePeriodicWave(ac, d);
+      if (!wave) { continue; }
+      record = { wave: wave };
       // A strategy for computing higher frequency waveforms: apply
       // multipliers to each harmonic according to d.mult.  These
       // multipliers can be interpolated and applied at any number
@@ -1410,14 +1419,16 @@ var Instrument = (function() {
         ff = wavedata[k].freq;
         record.freq = {};
         for (j = 0; j < ff.length; ++j) {
-          record.freq[ff[j]] =
+          wave =
             makePeriodicWave(ac, makeMultiple(d, d.mult, (j + 1) / ff.length));
+          if (wave) { record.freq[ff[j]] = wave; }
         }
       }
       // This wave has some default filter settings.
       if (d.defs) {
         record.defs = d.defs;
       }
+      result[k] = record;
     }
     return result;
   })({
