@@ -19,6 +19,7 @@ function getAudioTop() {
   var ac = new (global.AudioContext || global.webkitAudioContext);
   getAudioTop.audioTop = {
     ac: ac,
+    wavetable: makeWavetable(ac),
     out: null,
     currentStart: null
   };
@@ -82,7 +83,8 @@ var Instrument = (function() {
   // responsible for about 2 seconds of music.  If a graph with too
   // too many nodes is sent to WebAudio at once, output distorts badly.
   function Instrument(options) {
-    this._timbre = makeTimbre(options);  // The instrument's timbre.
+    this._atop = getAudioTop();     // Audio context.
+    this._timbre = makeTimbre(options, this._atop);  // The instrument's timbre.
     this._queue = [];               // A queue of future tones to play.
     this._minQueueTime = Infinity;  // The earliest time in _queue.
     this._maxScheduledTime = 0;     // The latest time in _queue.
@@ -105,12 +107,12 @@ var Instrument = (function() {
 
   // Sets the default timbre for the instrument.  See defaultTimbre.
   Instrument.prototype.setTimbre = function(t) {
-    this._timbre = makeTimbre(t);     // Saves a copy.
+    this._timbre = makeTimbre(t, this._atop);     // Saves a copy.
   };
 
   // Returns the default timbre for the instrument as an object.
   Instrument.prototype.getTimbre = function(t) {
-    return makeTimbre(this._timbre);  // Makes a copy.
+    return makeTimbre(this._timbre, this._atop);  // Makes a copy.
   };
 
   // Sets the overall volume for the instrument immediately.
@@ -238,6 +240,8 @@ var Instrument = (function() {
         starttime = record.time,
         releasetime = starttime + record.duration,
         attacktime = Math.min(releasetime, starttime + timbre.attack),
+        decaytime = timbre.decay *
+            Math.pow(440 / record.frequency, timbre.decayfollow),
         decaystarttime = attacktime,
         stoptime = releasetime + timbre.release,
         doubled = timbre.detune && timbre.detune != 1.0,
@@ -258,15 +262,15 @@ var Instrument = (function() {
         decaystarttime += 1/256;
         g.gain.linearRampToValueAtTime(
             amp * (timbre.sustain + (1 - timbre.sustain) *
-                Math.exp((attacktime - decaystarttime) / timbre.decay)),
+                Math.exp((attacktime - decaystarttime) / decaytime)),
             decaystarttime);
       }
       // For the rest of the decay, use setTargetAtTime.
       g.gain.setTargetAtTime(amp * timbre.sustain,
-          decaystarttime, timbre.decay);
+          decaystarttime, decaytime);
       // Then at release time, mark the value and ramp to zero.
       g.gain.setValueAtTime(amp * (timbre.sustain + (1 - timbre.sustain) *
-          Math.exp((attacktime - releasetime) / timbre.decay)), releasetime);
+          Math.exp((attacktime - releasetime) / decaytime)), releasetime);
       g.gain.linearRampToValueAtTime(0, stoptime);
       g.connect(this._out);
       // Hook up a low-pass filter if cutoff is specified.
@@ -280,13 +284,14 @@ var Instrument = (function() {
         f.connect(g);
       }
       // Hook up the main oscillator.
-      o = makeOscillator(ac, timbre.wave, record.frequency);
+      o = makeOscillator(this._atop, timbre.wave, record.frequency);
       o.connect(f);
       o.start(starttime);
       o.stop(stoptime);
       // Hook up a detuned oscillator.
       if (doubled) {
-        o2 = makeOscillator(ac, timbre.wave, record.frequency * timbre.detune);
+        o2 = makeOscillator(
+            this._atop, timbre.wave, record.frequency * timbre.detune);
         o2.connect(f);
         o2.start(starttime);
         o2.stop(stoptime);
@@ -315,6 +320,8 @@ var Instrument = (function() {
         var timbre = record.timbre || this._timbre,
             starttime = record.time,
             attacktime = Math.min(releasetime, starttime + timbre.attack),
+            decaytime = timbre.decay *
+                Math.pow(440 / record.frequency, timbre.decayfollow),
             stoptime = releasetime + timbre.release,
             cleanuptime = stoptime + Instrument.cleanupDelay,
             doubled = timbre.detune && timbre.detune != 1.0,
@@ -332,7 +339,7 @@ var Instrument = (function() {
         } else {
           // Release during decay?  Interrupt decay down.
           g.gain.setValueAtTime(amp * (timbre.sustain + (1 - timbre.sustain) *
-            Math.exp((attacktime - releasetime) / timbre.decay)), releasetime);
+            Math.exp((attacktime - releasetime) / decaytime)), releasetime);
         }
         // Then ramp down to zero according to record.release.
         g.gain.linearRampToValueAtTime(0, stoptime);
@@ -637,7 +644,7 @@ var Instrument = (function() {
       for (vn in abcfile.voice) {
         // Each voice could have a separate timbre.
         timbre = makeTimbre(opts.timbre || abcfile.voice[vn].timbre ||
-           abcfile.timbre || this._timbre);
+           abcfile.timbre || this._timbre, this._atop);
         // Each voice has a series of stems (notes or chords).
         stems = abcfile.voice[vn].stems;
         if (!stems) continue;
@@ -659,6 +666,9 @@ var Instrument = (function() {
               // Shorten staccato notes.
               secs = Math.min(Math.min(secs, beatsecs / 16),
                   timbre.attack + timbre.decay);
+            } else if (!note.slurred && secs >= 1/8) {
+              // Separate unslurred notes by about a 30th of a second.
+              secs -= 1/32;
             }
             v = (note.velocity || 1) * attenuate;
             // This is innsermost part of the inner loop!
@@ -707,7 +717,7 @@ var Instrument = (function() {
           voice: {}
         },
         context = result, timbre,
-        j, header, stems, key = {}, accent = {}, out, firstvoice;
+        j, header, stems, key = {}, accent = {slurred: 0}, out, firstvoice;
     // Shifts context to a voice with the given id given.  If no id
     // given, then just sticks with the current voice.  If the current
     // voice is unnamed and empty, renames the current voice.
@@ -989,7 +999,21 @@ var Instrument = (function() {
         parseDecoration(tokens[index++], accent);
         continue;
       }
-
+      if (/^[()]$/.test(tokens[index])) {
+        if (tokens[index++] == '(') {
+          accent.slurred += 1;
+        } else {
+          accent.slurred -= 1;
+          if (accent.slurred <= 0) {
+            accent.slurred = 0;
+            if (result.length >= 1) {
+              // The last notes in a slur are not slurred.
+              slurStem(result[result.length - 1], false);
+            }
+          }
+        }
+        continue;
+      }
       // Handle measure markings by clearing accidentals.
       if (/\|/.test(tokens[index])) {
         for (t in accent) {
@@ -1028,6 +1052,10 @@ var Instrument = (function() {
           syncopateStem(parsed.stem, -t);
         }
         dotted = 0;
+        // Slur all the notes contained within a strem.
+        if (accent.slurred) {
+          slurStem(parsed.stem, true);
+        }
         // Add the stem to the sequence of stems for this voice.
         result.push(parsed.stem);
         // Advance the parsing index since a stem is multiple tokens.
@@ -1038,13 +1066,25 @@ var Instrument = (function() {
   }
   // Additively adjusts the beats for a stem and the contained notes.
   function syncopateStem(stem, t) {
-    var j, stemtime = stem.time, newtime = stemtime + t;
+    var j, note, stemtime = stem.time, newtime = stemtime + t;
     stem.time = newtime;
     syncopateStem
     for (j = 0; j < stem.note.length; ++j) {
       note = stem.note[j];
       // Only adjust a note's duration if it matched the stem's duration.
       if (note.time == stemtime) { note.time = newtime; }
+    }
+  }
+  // Marks everything in the stem with the slur attribute (or deletes it).
+  function slurStem(stem, addSlur) {
+    var j, note;
+    for (j = 0; j < stem.note.length; ++j) {
+      note = stem.note[j];
+      if (addSlur) {
+        note.slurred = true;
+      } else if (note.slurred) {
+        delete note.slurred;
+      }
     }
   }
   // Scales the beats for a stem and the contained notes.
@@ -1301,6 +1341,7 @@ var Instrument = (function() {
     gain: 0.1,        // Overall gain at maximum attack.
     attack: 0.002,    // Attack time at the beginning of a tone.
     decay: 0.4,       // Rate of exponential decay after attack.
+    decayfollow: 0,   // Amount of decay shortening for higher notes.
     sustain: 0,       // Portion of gain to sustain indefinitely.
     release: 0.1,     // Release time after a tone is done.
     cutoff: 0,        // Low-pass filter cutoff frequency.
@@ -1313,7 +1354,7 @@ var Instrument = (function() {
   // the right set of timbre fields, defaulting when needed.
   // A timbre can specify any of the fields of defaultTimbre; any
   // unspecified fields are treated as they are set in defaultTimbre.
-  function makeTimbre(options) {
+  function makeTimbre(options, atop) {
     if (!options) {
       options = {};
     }
@@ -1321,7 +1362,8 @@ var Instrument = (function() {
       // Abbreviation: name a wave to get a default timbre for that wave.
       options = { wave: options };
     }
-    var result = {}, key, wt = wavetable[options.wave];
+    var result = {}, key,
+        wt = atop && atop.wavetable && atop.wavetable[options.wave];
     for (key in defaultTimbre) {
       if (options.hasOwnProperty(key)) {
         result[key] = options[key];
@@ -1337,8 +1379,8 @@ var Instrument = (function() {
   // This utility function creates an oscillator at the given frequency
   // and the given wavename.  It supports lookups in a static wavetable,
   // defined right below.
-  function makeOscillator(ac, wavename, freq) {
-    var o = ac.createOscillator();
+  function makeOscillator(atop, wavename, freq) {
+    var wavetable = atop.wavetable, o = atop.ac.createOscillator();
     try {
       if (wavetable.hasOwnProperty(wavename)) {
         // Use a customized wavetable.
@@ -1368,16 +1410,19 @@ var Instrument = (function() {
     return o;
   }
 
-  // wavetable is a table of names for nonstandard waveforms.
-  // The table maps names to objects that have wave: and freq:
-  // properties. The wave: property is a PeriodicWave to use
-  // for the oscillator.  The freq: property, if present,
-  // is a map from higher frequencies to more PeriodicWave
-  // objects; when a frequency higher than the given threshold
-  // is requested, the alternate PeriodicWave is used.
-  var wavetable = (function(wavedata) {
-    if (!isAudioPresent()) { return {}; }
-    function makePeriodicWave(ac, data) {
+  return Instrument;
+})();
+
+// wavetable is a table of names for nonstandard waveforms.
+// The table maps names to objects that have wave: and freq:
+// properties. The wave: property is a PeriodicWave to use
+// for the oscillator.  The freq: property, if present,
+// is a map from higher frequencies to more PeriodicWave
+// objects; when a frequency higher than the given threshold
+// is requested, the alternate PeriodicWave is used.
+function makeWavetable(ac) {
+  return (function(wavedata) {
+    function makePeriodicWave(data) {
       var n = data.real.length,
           real = new Float32Array(n),
           imag = new Float32Array(n),
@@ -1405,10 +1450,10 @@ var Instrument = (function() {
       }
       return result;
     }
-    var result = {}, k, d, n, j, ff, record, wave, pw, ac = getAudioTop().ac;
+    var result = {}, k, d, n, j, ff, record, wave, pw;
     for (k in wavedata) {
       d = wavedata[k];
-      wave = makePeriodicWave(ac, d);
+      wave = makePeriodicWave(d);
       if (!wave) { continue; }
       record = { wave: wave };
       // A strategy for computing higher frequency waveforms: apply
@@ -1420,7 +1465,7 @@ var Instrument = (function() {
         record.freq = {};
         for (j = 0; j < ff.length; ++j) {
           wave =
-            makePeriodicWave(ac, makeMultiple(d, d.mult, (j + 1) / ff.length));
+            makePeriodicWave(makeMultiple(d, d.mult, (j + 1) / ff.length));
           if (wave) { record.freq[ff[j]] = wave; }
         }
       }
@@ -1460,12 +1505,12 @@ var Instrument = (function() {
       // this should be fixed.
       defs: { wave: 'piano', gain: 0.3,
               attack: 0.002, decay: 0.4, sustain: 0.005, release: 0.1,
+              decayfollow: 0.7,
               cutoff: 800, cutfollow: 0.1, resonance: 1, detune: 1.001 }
     }
   });
+}
 
-  return Instrument;
-})();
 
 // The package implementation. Right now, just one class.
 var impl = {

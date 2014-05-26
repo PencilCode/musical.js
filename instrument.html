@@ -148,7 +148,8 @@ asyncTest("Plays Stairway with an Instrument.", function() {
   // Play 16 tones (13 beats) from stairway.
   ins.play("F_Acf [gE]cAg [a_E]cAa [dD]");
   ins.done(function() {
-    equal(AudioContext.methodlog[0], "gain1.connect");
+    ok(AudioContext.methodlog.indexOf('gain1.connect') >= 0);
+    ok(AudioContext.methodlog.indexOf('gain1.connect') < 2);
     // We should have hooked up, started, and stopped the 16th tone.
     ok(AudioContext.methodlog.indexOf('osc16.connect') > 0);
     ok(AudioContext.methodlog.indexOf('osc16.start') > 0);
@@ -185,7 +186,8 @@ asyncTest("Test tie timing.", function() {
   // Play a tied note.
   ins.play({tempo:120},"C-C");
   ins.done(function() {
-    equal(AudioContext.methodlog[0], "gain1.connect");
+    ok(AudioContext.methodlog.indexOf('gain1.connect') >= 0);
+    ok(AudioContext.methodlog.indexOf('gain1.connect') < 2);
     // One note should have sounded.
     ok(AudioContext.methodlog.indexOf('osc1.connect') > 0);
     ok(AudioContext.methodlog.indexOf('osc1.start') > 0);
@@ -214,7 +216,8 @@ asyncTest("Test staccato timing.", function() {
   // Play some staccato tones.
   ins.play({tempo:120},"C.c.cC");
   ins.done(function() {
-    equal(AudioContext.methodlog[0], "gain1.connect");
+    ok(AudioContext.methodlog.indexOf('gain1.connect') >= 0);
+    ok(AudioContext.methodlog.indexOf('gain1.connect') < 2);
     // We should have hooked up, started, and stopped the 4th tone.
     ok(AudioContext.methodlog.indexOf('osc4.connect') > 0);
     ok(AudioContext.methodlog.indexOf('osc4.start') > 0);
@@ -254,7 +257,8 @@ asyncTest("Test multiple voices with a Bach Minuet.", function() {
     "G,DGFED|CB,CDEC|D2D,2D2|"
   );
   ins.done(function() {
-    equal(AudioContext.methodlog[0], "gain1.connect");
+    ok(AudioContext.methodlog.indexOf('gain1.connect') >= 0);
+    ok(AudioContext.methodlog.indexOf('gain1.connect') < 2);
     // We should have hooked up, started, and stopped the 27th tone.
     ok(AudioContext.methodlog.indexOf('osc27.connect') > 0);
     ok(AudioContext.methodlog.indexOf('osc27.start') > 0);

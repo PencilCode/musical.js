@@ -6,7 +6,7 @@
 <script>
 function setupFakeAudioContext() {
   window.AudioContext = (function() {
-    var interval = 1/16,
+    var interval = 1/64,
         methodlog = [],
         ocounts = {};
     function makeLoggingMethod(oname, fname) {
@@ -144,7 +144,8 @@ asyncTest("Plays Stairway with an Instrument.", function() {
   ins.on('noteoff', function(e) { notelog.push('off' + e.midi); });
   // Play 16 tones (13 beats) from stairway.
   ins.play("F_Acf [gE]cAg [a_E]cAa [dD]", function() {
-    // equal(AudioContext.methodlog[0], "gain1.connect");
+    ok(AudioContext.methodlog.indexOf('gain1.connect') >= 0);
+    ok(AudioContext.methodlog.indexOf('gain1.connect') < 2);
     // We should have hooked up, started, and stopped the 16th tone.
     ok(AudioContext.methodlog.indexOf('osc16.connect') > 0);
     ok(AudioContext.methodlog.indexOf('osc16.start') > 0);
@@ -180,7 +181,8 @@ asyncTest("Test tie timing.", function() {
   });
   // Play a tied note.
   ins.play({tempo:120},"C-C", function() {
-    equal(AudioContext.methodlog[0], "gain1.connect");
+    ok(AudioContext.methodlog.indexOf('gain1.connect') >= 0);
+    ok(AudioContext.methodlog.indexOf('gain1.connect') < 2);
     // One note should have sounded.
     ok(AudioContext.methodlog.indexOf('osc1.connect') > 0);
     ok(AudioContext.methodlog.indexOf('osc1.start') > 0);
@@ -189,7 +191,7 @@ asyncTest("Test tie timing.", function() {
     ok(AudioContext.methodlog.indexOf('osc2.start') < 0);
     // Now test that we got all the callbacks, in order.
     deepEqual(notelog, [            // Default tempo: 120 = 500ms beats.
-        "on60-0", "off60-1000",     // Full beat C4.
+        "on60-0", "off60-969",      // Full beat C4.
     ]);
     start();
   });
@@ -207,8 +209,9 @@ asyncTest("Test staccato timing.", function() {
     notelog.push('off' + e.midi + '-' + (currentTick() - startTick));
   });
   // Play some staccato tones.
-  ins.play({tempo:120},"C.c.cC", function() {
-    equal(AudioContext.methodlog[0], "gain1.connect");
+  ins.play({tempo:120},"(C.c).cC", function() {
+    ok(AudioContext.methodlog.indexOf('gain1.connect') >= 0);
+    ok(AudioContext.methodlog.indexOf('gain1.connect') < 2);
     // We should have hooked up, started, and stopped the 4th tone.
     ok(AudioContext.methodlog.indexOf('osc4.connect') > 0);
     ok(AudioContext.methodlog.indexOf('osc4.start') > 0);
@@ -217,10 +220,14 @@ asyncTest("Test staccato timing.", function() {
     ok(AudioContext.methodlog.indexOf('osc5.start') < 0);
     // Now test that we got all the callbacks, in order.
     deepEqual(notelog, [            // Default tempo: 120 = 500ms beats.
-        "on60-0", "off60-500",      // Full beat C4.
-        "on72-500", "off72-562",    // Staccato C5.
-        "on72-1000", "off72-1062",  // Staccato C5.
-        "on60-1500", "off60-2000"   // Full beat C4 again.
+        "on60-0",                   // Full beat C4
+        "off60-500",
+        "on72-500",                 // Staccato C5.
+        "off72-516",
+        "on72-985",                 // Staccato C5.
+        "off72-1001",
+        "on60-1470",                // Full beat C4.
+        "off60-1923"
     ]);
     start();
   });
@@ -247,7 +254,8 @@ asyncTest("Test multiple voices with a Bach Minuet.", function() {
     "V:3\n" +
     "G,DGFED|CB,CDEC|D2D,2D2|",
   function() {
-    equal(AudioContext.methodlog[0], "gain1.connect");
+    ok(AudioContext.methodlog.indexOf('gain1.connect') >= 0);
+    ok(AudioContext.methodlog.indexOf('gain1.connect') < 2);
     // We should have hooked up, started, and stopped the 27th tone.
     ok(AudioContext.methodlog.indexOf('osc27.connect') > 0);
     ok(AudioContext.methodlog.indexOf('osc27.start') > 0);
@@ -257,54 +265,60 @@ asyncTest("Test multiple voices with a Bach Minuet.", function() {
     // Now test that we got all the callbacks, in order.
     sortNoteLog(notelog);
     deepEqual(notelog, [              // Default tempo: 120 = 500ms beats.
-        "on55-0", "on70-0", "on74-0", // Start all three voices, dBG,
-        "off55-500",                  // G, ends after one beat
-        "on62-500", "off62-1000",     // V3 only here:
-        "on67-1000", "off67-1500",
-        "on65-1500", "off65-2000",
-        "on63-2000", "off63-2500",
-        "on62-2500",
-        "off62-3000",                 // V1 ends their first note here.
-        "off74-3000",
-        "on60-3000",                  // All three voices start a note
-        "on75-3000",
-        "off60-3500",                 // V3 ends its C in one beat
-        "on58-3500",                  // V3 starts a B flat (G minor)
-        "off58-4000",                 // V3 ends its B flat
-        "off75-4000",                 // V1 ends its e flat in two beats
-        "on60-4000",                  // V3 starts a C
-        "on74-4000",                  // V1 starts its d
-        "off60-4500",                 // V3 ends its C
-        "on62-4500",                  // V3 starts its D
-        "off62-5000",                 // V3 ends its D
-        "off70-5000",                 // V2 ends its very long B flat (G minor)
-        "off74-5000",                 // V1 ends its d
-        "on63-5000",
-        "on69-5000",
-        "on72-5000",
-        "off63-5500",
-        "on60-5500",
-        "off60-6000",
-        "on62-6000",
-        "off72-6500",
-        "on70-6500",
-        "off62-7000",
-        "off69-7000",
-        "off70-7000",
-        "on50-7000",
-        "on67-7000",
-        "on72-7000",
-        "off72-7500",
-        "on69-7500",
-        "off50-8000",
-        "off67-8000",
-        "off69-8000",
-        "on62-8000",
-        "on66-8000",
-        "on74-8000",
-        "off62-8938",
-        "off66-8938",
-        "off74-8938"
+        "on55-0",
+        "on70-0",
+        "on74-0",
+        "off55-469",
+        "on62-485",
+        "off62-954",
+        "on67-970",
+        "off67-1439",
+        "on65-1455",
+        "off65-1924",
+        "on63-1924",
+        "off63-2393",
+        "on62-2409",
+        "off62-2878",
+        "off74-2878",
+        "on60-2894",
+        "on75-2894",
+        "off60-3363",
+        "on58-3363",
+        "off58-3832",
+        "off75-3832",
+        "on60-3848",
+        "on74-3848",
+        "off60-4317",
+        "on62-4333",
+        "off62-4802",
+        "off70-4802",
+        "off74-4802",
+        "on63-4802",
+        "on69-4802",
+        "on72-4802",
+        "off63-5271",
+        "on60-5287",
+        "off60-5756",
+        "on62-5772",
+        "off72-6241",
+        "on70-6241",
+        "off62-6710",
+        "off69-6710",
+        "off70-6710",
+        "on50-6726",
+        "on67-6726",
+        "on72-6726",
+        "off72-7195",
+        "on69-7211",
+        "off50-7680",
+        "off67-7680",
+        "off69-7680",
+        "on62-7696",
+        "on66-7696",
+        "on74-7696",
+        "off62-8649",
+        "off66-8649",
+        "off74-8649"
     ]);
     start();
   });
@@ -341,7 +355,7 @@ asyncTest("Test realtime Piano.", function() {
               "on60-1000",   // and then signal this on second.
               "off67-1500",
               "off60-2000",
-              "off64-10438"  // Release the E after 10 seconds.
+              "off64-10109"  // Release the E after 10 seconds.
             ]);
             start();
           }, 10000);
@@ -387,104 +401,104 @@ asyncTest("Test full ABC notation with a Beethoven Sonata.", function() {
   ins.play(sonata, function() {
     sortNoteLog(notelog);
     deepEqual(notelog, [
-      "on36-0",
-      "on39-0",
-      "on43-0",
-      "on48-0",
-      "on51-0",
-      "on55-0",
-      "on60-0",
-      "off36-2750",
-      "off39-2750",
-      "off43-2750",
-      "off48-2750",
-      "off51-2750",
-      "off55-2750",
-      "off60-2750",
-      "on51-2750",
-      "on55-2750",
-      "on60-2750",
-      "off51-3000",
-      "off55-3000",
-      "off60-3000",
-      "on50-3000",
-      "on55-3000",
-      "on59-3000",
-      "on62-3000",
-      "off50-3750",
-      "off55-3750",
-      "off59-3750",
-      "off62-3750",
-      "on48-3750",
-      "on55-3750",
-      "on60-3750",
-      "on63-3750",
-      "off48-4000",
-      "off55-4000",
-      "off60-4000",
-      "off63-4000",
-      "on54-4000",
-      "on57-4000",
-      "on60-4000",
-      "on63-4000",
-      "off54-5975",
-      "off57-5975",
-      "off60-5975",
-      "off63-5975",
-      "on55-5975",
-      "on59-5975",
-      "on62-5975",
-      "off55-6975",
-      "off59-6975",
-      "off62-6975",
-      "on44-7475",
-      "off44-7975",
-      "on56-7975",
-      "on59-7975",
-      "on62-7975",
-      "on65-7975",
-      "off56-10700",
-      "off59-10700",
-      "off62-10700",
-      "off65-10700",
-      "on56-10700",
-      "on59-10700",
-      "on62-10700",
-      "on65-10700",
-      "off56-10950",
-      "off59-10950",
-      "off62-10950",
-      "off65-10950",
-      "on55-10950",
-      "on59-10950",
-      "on62-10950",
-      "on67-10950",
-      "off55-11700",
-      "off59-11700",
-      "off62-11700",
-      "off67-11700",
-      "on53-11700",
-      "on59-11700",
-      "on62-11700",
-      "on68-11700",
-      "off53-11950",
-      "off59-11950",
-      "off62-11950",
-      "off68-11950",
-      "on51-11950",
-      "on59-11950",
-      "on62-11950",
-      "on68-11950",
-      "off59-13925",
-      "off62-13925",
-      "off68-13925",
-      "on60-13925",
-      "on63-13925",
-      "on67-13925",
-      "off51-14925",
-      "off60-14925",
-      "off63-14925",
-      "off67-14925"
+        "on36-0",
+        "on39-0",
+        "on43-0",
+        "on48-0",
+        "on51-0",
+        "on55-0",
+        "on60-0",
+        "off36-2641",
+        "off39-2641",
+        "off43-2641",
+        "off48-2641",
+        "off51-2641",
+        "off55-2641",
+        "off60-2641",
+        "on51-2641",
+        "on55-2641",
+        "on60-2641",
+        "off51-2860",
+        "off55-2860",
+        "off60-2860",
+        "on50-2891",
+        "on55-2891",
+        "on59-2891",
+        "on62-2891",
+        "off50-3610",
+        "off55-3610",
+        "off59-3610",
+        "off62-3610",
+        "on48-3610",
+        "on55-3610",
+        "on60-3610",
+        "on63-3610",
+        "off48-3829",
+        "off55-3829",
+        "off60-3829",
+        "off63-3829",
+        "on54-3845",
+        "on57-3845",
+        "on60-3845",
+        "on63-3845",
+        "off54-5773",
+        "off57-5773",
+        "off60-5773",
+        "off63-5773",
+        "on55-5773",
+        "on59-5773",
+        "on62-5773",
+        "off55-6742",
+        "off59-6742",
+        "off62-6742",
+        "on44-7226",
+        "off44-7679",
+        "on56-7695",
+        "on59-7695",
+        "on62-7695",
+        "on65-7695",
+        "off56-10358",
+        "off59-10358",
+        "off62-10358",
+        "off65-10358",
+        "on56-10358",
+        "on59-10358",
+        "on62-10358",
+        "on65-10358",
+        "off56-10546",
+        "off59-10546",
+        "off62-10546",
+        "off65-10546",
+        "on55-10562",
+        "on59-10562",
+        "on62-10562",
+        "on67-10562",
+        "off55-11281",
+        "off59-11281",
+        "off62-11281",
+        "off67-11281",
+        "on53-11281",
+        "on59-11281",
+        "on62-11281",
+        "on68-11281",
+        "off53-11500",
+        "off59-11500",
+        "off62-11500",
+        "off68-11500",
+        "on51-11531",
+        "on59-11531",
+        "on62-11531",
+        "on68-11531",
+        "off59-13459",
+        "off62-13459",
+        "off68-13459",
+        "on60-13459",
+        "on63-13459",
+        "on67-13459",
+        "off51-14412",
+        "off60-14412",
+        "off63-14412",
+        "off67-14412"
     ]);
     start();
   });
