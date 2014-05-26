@@ -1380,7 +1380,8 @@ var Instrument = (function() {
   // and the given wavename.  It supports lookups in a static wavetable,
   // defined right below.
   function makeOscillator(atop, wavename, freq) {
-    var wavetable = atop.wavetable, o = atop.ac.createOscillator();
+    var wavetable = atop.wavetable, o = atop.ac.createOscillator(),
+        k, pwave, bwf, wf;
     try {
       if (wavetable.hasOwnProperty(wavename)) {
         // Use a customized wavetable.
