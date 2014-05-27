@@ -168,7 +168,7 @@ asyncTest("Plays Stairway with an Instrument.", function() {
   });
 });
 
-asyncTest("Test tie timing.", function() {
+asyncTest("Test tied-note timing.", function() {
   AudioContext.resetTestLog();
   var startTick = currentTick(),
       ins = new Instrument(),
@@ -190,7 +190,7 @@ asyncTest("Test tie timing.", function() {
     // But not a second note.
     ok(AudioContext.methodlog.indexOf('osc2.start') < 0);
     // Now test that we got all the callbacks, in order.
-    deepEqual(notelog, [            // Default tempo: 120 = 500ms beats.
+    deepEqual(notelog, [            // tempo: 120 = 500ms beats.
         "on60-0", "off60-969",      // Full beat C4.
     ]);
     start();
@@ -219,7 +219,7 @@ asyncTest("Test staccato timing.", function() {
     // And there should be no 5th tone.
     ok(AudioContext.methodlog.indexOf('osc5.start') < 0);
     // Now test that we got all the callbacks, in order.
-    deepEqual(notelog, [            // Default tempo: 120 = 500ms beats.
+    deepEqual(notelog, [            // tempo: 120 = 500ms beats.
         "on60-0",                   // Full beat C4
         "off60-500",
         "on72-500",                 // Staccato C5.
@@ -264,7 +264,7 @@ asyncTest("Test multiple voices with a Bach Minuet.", function() {
     ok(AudioContext.methodlog.indexOf('osc28.start') < 0);
     // Now test that we got all the callbacks, in order.
     sortNoteLog(notelog);
-    deepEqual(notelog, [              // Default tempo: 120 = 500ms beats.
+    deepEqual(notelog, [              // tempo: 120 = 500ms beats.
         "on55-0",
         "on70-0",
         "on74-0",

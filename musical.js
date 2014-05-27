@@ -182,8 +182,7 @@ var Instrument = (function() {
     if (this._now != null) {
       return this._now;
     }
-    this._startPollTimer(true);
-    this._now = audioCurrentStartTime();
+    this._startPollTimer(true);  // passing (true) sets this._now.
     return this._now;
   };
 
@@ -389,8 +388,8 @@ var Instrument = (function() {
       this.silence();
       return;
     }
-    var now = this._atop.ac.currentTime,
-        j, work, when, freq, record, conflict, save;
+    var now = this._atop.ac.currentTime, callbacks = [],
+        j, work, when, freq, record, conflict, save, cb;
     // Schedule a batch of notes
     if (this._minQueueTime - now <= Instrument.bufferSecs) {
       if (this._unsortedQueue) {
@@ -432,7 +431,7 @@ var Instrument = (function() {
       record = this._finishSet[freq];
       when = record.time + record.duration;
       if (when <= now) {
-        this._trigger('noteoff', record);
+        callbacks.push({order: [when, 0], f: this._trigger, t: this, a: ['noteoff', record]});
         if (record.cleanuptime != Infinity) {
           this._cleanupSet.push(record);
         }
@@ -441,8 +440,10 @@ var Instrument = (function() {
     }
     // Call any specific one-time callbacks that were registered.
     for (j = 0; j < this._callbackSet.length; ++j) {
-      if (this._callbackSet[j].time <= now) {
-        this._callbackSet[j].callback();
+      cb = this._callbackSet[j];
+      when = cb.time;
+      if (when <= now) {
+        callbacks.push({order: [when, 1], f: cb.callback, t: null, a: []});
         this._callbackSet.splice(j, 1);
         j -= 1;
       }
@@ -462,7 +463,8 @@ var Instrument = (function() {
             // Our new sound conflicts with an old one: end the old one
             // and notify immediately of its noteoff event.
             this._truncateSound(conflict, record.time);
-            this._trigger('noteoff', conflict);
+            callbacks.push(
+                {order: [record.time, 0], f: this._trigger, t: this, a: ['noteoff', conflict]});
             delete this._finishSet[freq];
           } else {
             // A conflict from the future has already scheduled,
@@ -476,61 +478,75 @@ var Instrument = (function() {
         j -= 1;
         if (record.duration > 0 && record.velocity > 0 && conflict !== record) {
           this._finishSet[freq] = record;
-          this._trigger('noteon', record);
+          callbacks.push(
+              {order: [record.time, 2], f: this._trigger, t: this, a: ['noteon', record]});
         }
       }
     }
+    // Schedule the next _doPoll.
     this._startPollTimer();
+
+    // Sort callbacks according to the "order" tuple, so earlier events are notified first.
+    callbacks.sort(function(a, b) {
+      if (a.order[0] != b.order[0]) { return a.order[0] - b.order[0]; }
+      return a.order[1] - b.order[1]; // tiebreak by notifying 'noteoff' first and 'noteon' last.
+    });
+    // At the end, call all the callbacks without depending on "this" state.
+    for (j = 0; j < callbacks.length; ++j) {
+      cb = callbacks[j];
+      cb.f.apply(cb.t, cb.a);
+    }
   };
   // Schedules the next _doPoll call by examining times in the various
   // sets and determining the soonest event that needs _doPoll processing.
-  Instrument.prototype._startPollTimer = function(immediate) {
-    var instrument = this,
+  Instrument.prototype._startPollTimer = function(setnow) {
+    // If we have already done a "setnow", then pollTimer is zero-timeout and cannot be faster.
+    if (this._pollTimer && this._now != null) {
+      return;
+    }
+    var self = this,
+        poll = function() { self._doPoll(); },
         earliest = Infinity, j, delay;
     if (this._pollTimer) {
-      if (this._now != null) {
-        // When _now is set (as during a loop setting up sequencing),
-        // we have already set the poll timer to come back instantly,
-        // so the timer does not need to be updated.
-        return;
-      }
-      // We might have updated information: clear the timer and look again.
+      // Clear any old timer
       clearTimeout(this._pollTimer);
       this._pollTimer = null;
     }
-    if (immediate) {
-      // Timer due to now() call: schedule immediately.
-      earliest = 0;
-    } else {
-      // Timer due to notes starting: wake up for 'noteon' notification.
-      for (j = 0; j < this._startSet.length; ++j) {
-        earliest = Math.min(earliest, this._startSet[j].time);
-      }
-      // Timer due to notes finishing: wake up for 'noteoff' notification.
-      for (j in this._finishSet) {
-        earliest = Math.min(
-          earliest, this._finishSet[j].time + this._finishSet[j].duration);
-      }
-      // Timer due to scheduled callback.
-      for (j = 0; j < this._callbackSet.length; ++j) {
-        earliest = Math.min(earliest, this._callbackSet[j].time);
-      }
-      // Timer due to cleanup: add a second to give some time to batch up.
-      if (this._cleanupSet.length > 0) {
-        earliest = Math.min(earliest, this._cleanupSet[0].cleanuptime + 1);
-      }
-      // Timer due to sequencer events: subtract a little time to stay ahead.
-      earliest = Math.min(
-         earliest, this._minQueueTime - Instrument.dequeueTime);
+    if (setnow) {
+      // When scheduling tones, cache _now and keep a zero-timeout poll.
+      // _now will be cleared the next time we execute _doPoll.
+      this._now = audioCurrentStartTime();
+      this._pollTimer = setTimeout(poll, 0);
+      return;
     }
+    // Timer due to notes starting: wake up for 'noteon' notification.
+    for (j = 0; j < this._startSet.length; ++j) {
+      earliest = Math.min(earliest, this._startSet[j].time);
+    }
+    // Timer due to notes finishing: wake up for 'noteoff' notification.
+    for (j in this._finishSet) {
+      earliest = Math.min(
+        earliest, this._finishSet[j].time + this._finishSet[j].duration);
+    }
+    // Timer due to scheduled callback.
+    for (j = 0; j < this._callbackSet.length; ++j) {
+      earliest = Math.min(earliest, this._callbackSet[j].time);
+    }
+    // Timer due to cleanup: add a second to give some time to batch up.
+    if (this._cleanupSet.length > 0) {
+      earliest = Math.min(earliest, this._cleanupSet[0].cleanuptime + 1);
+    }
+    // Timer due to sequencer events: subtract a little time to stay ahead.
+    earliest = Math.min(
+       earliest, this._minQueueTime - Instrument.dequeueTime);
+
     delay = Math.max(0, earliest - this._atop.ac.currentTime);
 
     // If there are no future events, then we do not need a timer.
     if (isNaN(delay) || delay == Infinity) { return; }
 
     // Use the Javascript timer to wake up at the right moment.
-    this._pollTimer = setTimeout(
-        function() { instrument._doPoll(); }, Math.round(delay * 1000));
+    this._pollTimer = setTimeout(poll, Math.round(delay * 1000));
   };
 
   // The low-level tone function.
