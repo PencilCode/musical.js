@@ -168,6 +168,39 @@ asyncTest("Plays Stairway with an Instrument.", function() {
   });
 });
 
+module("Test of key signatures.");
+asyncTest("Plays Stairway with an Instrument.", function() {
+  // reset methodlog
+  AudioContext.resetTestLog();
+  var ins = new Instrument(),
+      notelog = [];
+  ins.on('noteon', function(e) { notelog.push('on' + e.midi); });
+  ins.on('noteoff', function(e) { notelog.push('off' + e.midi); });
+  // Play 16 tones (13 beats) from stairway.
+  ins.play("K:C minor =B ^F\nCDEFGABc", function() {
+    ok(AudioContext.methodlog.indexOf('gain1.connect') >= 0);
+    ok(AudioContext.methodlog.indexOf('gain1.connect') < 2);
+    // We should have hooked up, started, and stopped the 16th tone.
+    ok(AudioContext.methodlog.indexOf('osc8.connect') > 0);
+    ok(AudioContext.methodlog.indexOf('osc8.start') > 0);
+    ok(AudioContext.methodlog.indexOf('osc8.stop') > 0);
+    // And there should be no 9th tone.
+    ok(AudioContext.methodlog.indexOf('osc9.start') < 0);
+    // Now test that we got all the notes right, with accidentals.
+    deepEqual(notelog, [
+        "on60", "off60", // C
+        "on62", "off62", // D
+        "on63", "off63", // E flat
+        "on66", "off66", // F sharp
+        "on67", "off67", // G
+        "on68", "off68", // A flat
+        "on71", "off71", // B natural!!
+        "on72", "off72"  // c
+    ]);
+    start();
+  });
+});
+
 asyncTest("Test tied-note timing.", function() {
   AudioContext.resetTestLog();
   var startTick = currentTick(),

@@ -669,10 +669,10 @@ var Instrument = (function() {
         for (ni = 0; ni < stems.length; ++ni) {
           stem = stems[ni];
           // Attenuate chords to reduce clipping.
-          attenuate = 1 / Math.sqrt(stem.note.length);
+          attenuate = 1 / Math.sqrt(stem.notes.length);
           // Schedule every note inside a stem.
-          for (j = 0; j < stem.note.length; ++j) {
-            note = stem.note[j];
+          for (j = 0; j < stem.notes.length; ++j) {
+            note = stem.notes[j];
             if (note.holdover) {
               // Skip holdover notes from ties.
               continue;
@@ -711,12 +711,14 @@ var Instrument = (function() {
   // Parses an ABC file to an object with the following structure:
   // {
   //   X: value from the X: lines in header (\n separated for multiple values)
-  //   K: value from the K: lines in header, etc.
+  //   V: value from the V:myname lines that appear before K:
+  //   (etc): for all the one-letter header-names.
+  //   K: value from the K: lines in header.
   //   tempo: Q: line parsed as beatsecs
   //   timbre: ... I:timbre line as parsed by makeTimbre
   //   voice: {
   //     myname: { // voice with id "myname"
-  //       V: value from the V:myname lines
+  //       V: value from the V:myname lines (from the body)
   //       stems: [...] as parsed by parseABCstems
   //    }
   //  }
@@ -742,15 +744,7 @@ var Instrument = (function() {
       if (!id && context !== result) {
         return;
       }
-      if (id && context !== result && !context.id &&
-          (!context.stems || !context.stems.length)) {
-        // If currently in an empty unnamed voice context, then
-        // delete it and switch to the new named context.
-        delete result.voice[context.id];
-        context.id = id;
-        result.voice[id] = context;
-        accent = context.accent;
-      } else if (result.voice.hasOwnProperty(id)) {
+      if (result.voice.hasOwnProperty(id)) {
         // Resume a named voice.
         context = result.voice[id];
         accent = context.accent;
@@ -831,10 +825,17 @@ var Instrument = (function() {
       // Calculate times for all the tied notes.  This happens at the end
       // because in principle, the first note of a song could be tied all
       // the way through to the last note.
+      out = [];
       for (j in result.voice) {
-        if (result.voice[j].stems) {
+        if (result.voice[j].stems && result.voice[j].stems.length) {
           processTies(result.voice[j].stems);
+        } else {
+          out.push(j);
         }
+      }
+      // Delete any voices that had no stems.
+      for (j = 0; j < out.length; ++j) {
+        delete result.voice[out[j]];
       }
     }
     return result;
@@ -884,8 +885,8 @@ var Instrument = (function() {
     var tied = {}, nextTied, j, k, note, firstNote;
     for (j = 0; j < stems.length; ++j) {
       nextTied = {};
-      for (k = 0; k < stems[j].note.length; ++k) {
-        firstNote = note = stems[j].note[k];
+      for (k = 0; k < stems[j].notes.length; ++k) {
+        firstNote = note = stems[j].notes[k];
         if (tied.hasOwnProperty(note.pitch)) {  // Pitch was tied from before.
           firstNote = tied[note.pitch];   // Get the earliest note in the tie.
           firstNote.time += note.time;    // Extend its time.
@@ -921,8 +922,8 @@ var Instrument = (function() {
   }
   // Decodes the key signature line (e.g., K: C#m) at the front of an ABC tune.
   // Supports the whole range of scale systems listed in the ABC spec.
-  function keysig(k) {
-    if (!k) { return {}; }
+  function keysig(keyname) {
+    if (!keyname) { return {}; }
     var key, sigcodes = {
       // Major
       'c#':7, 'f#':6, 'b':5, 'e':4, 'a':3, 'd':2, 'g':1, 'c':0,
@@ -951,7 +952,7 @@ var Instrument = (function() {
       'c#loc':2, 'f#loc':1, 'bloc':0, 'eloc':-1, 'aloc':-2,
       'dloc':-3, 'gloc':-4, 'cloc':-5, 'floc':-6, 'bbloc':-7
     };
-    k = k.replace(/\s+/g, '').toLowerCase().substr(0, 5);
+    var k = keyname.replace(/\s+/g, '').toLowerCase().substr(0, 5);
     var scale = k.match(/maj|min|mix|dor|phr|lyd|loc|m/);
     if (scale) {
       if (scale == 'maj') {
@@ -965,7 +966,7 @@ var Instrument = (function() {
       key = /^[a-g][#b]?/.exec(k) || '';
     }
     var result = accidentals(sigcodes[key]);
-    var extras = k.substr(key.length).match(/(__|_|=|\^\^|\^)[a-g]/g);
+    var extras = keyname.substr(key.length).match(/(__|_|=|\^\^|\^)[a-g]/ig);
     if (extras) {
       for (j = 0; j < extras.length; ++j) {
         var note = extras[j].charAt(extras[j].length - 1).toUpperCase();
@@ -979,9 +980,26 @@ var Instrument = (function() {
     return result;
   }
   // Parses a single line of ABC notes (i.e., not a header line).
-  // The general strategy is to tokenize the line using the following
-  // regexp, and then to delegate processing of single notes and
-  // stems (sets of notes between [...]) to parseStem.
+  //
+  // We process an ABC song stream by dividing it into tokens, each of
+  // which is a pitch, duration, or special decoration symbol; then
+  // we process each decoration individually, and we process each
+  // stem as a group using parseStem.
+  // The structure of a single ABC note is something like this:
+  //
+  // NOTE -> STACCATO? PITCH DURATION? TIE?
+  //
+  // I.e., it always has a pitch, and it is prefixed by some optional
+  // decorations such as a (.) staccato marking, and it is suffixed by
+  // an optional duration and an optional tie (-) marking.
+  //
+  // A stem is either a note or a bracketed series of notes, followed
+  // by duration and tie.
+  //
+  // STEM -> NOTE   OR    '[' NOTE * ']' DURAITON? TIE?
+  //
+  // Then a song is just a sequence of stems interleaved with other
+  // decorations such as dynamics markings and measure delimiters.
   var ABCtoken = /(?:^\[V:[^\]\s]*\])|\s+|%[^\n]*|![^\s!:|\[\]]*!|\+[^+|!]*\+|\[|\]|>+|<+|(?:(?:\^\^|\^|__|_|=|)[A-Ga-g](?:,+|'+|))|\(\d+(?::\d+){0,2}|\d*\/\d+|\d+\/?|\/+|[xzXZ]|\[?\|\]?|:?\|:?|::|./g;
   function parseABCNotes(str, key, accent, out) {
     var tokens = str.match(ABCtoken), result = [], parsed = null,
@@ -1048,35 +1066,33 @@ var Instrument = (function() {
         continue;
       }
       // Process a parsed stem.
-      if (parsed !== null) {
-        if (beatlet) {
-          scaleStem(parsed.stem, beatlet.time);
-          beatlet.count -= 1;
-          if (!beatlet.count) {
-            beatlet = null;
-          }
+      if (beatlet) {
+        scaleStem(parsed.stem, beatlet.time);
+        beatlet.count -= 1;
+        if (!beatlet.count) {
+          beatlet = null;
         }
-        // If syncopated with > or < notation, shift part of a beat
-        // between this stem and the previous one.
-        if (dotted && result.length) {
-          if (dotted > 0) {
-            t = (1 - Math.pow(0.5, dotted)) * parsed.stem.time;
-          } else {
-            t = (Math.pow(0.5, -dotted) - 1) * result[result.length - 1].time;
-          }
-          syncopateStem(result[result.length - 1], t);
-          syncopateStem(parsed.stem, -t);
-        }
-        dotted = 0;
-        // Slur all the notes contained within a strem.
-        if (accent.slurred) {
-          slurStem(parsed.stem, true);
-        }
-        // Add the stem to the sequence of stems for this voice.
-        result.push(parsed.stem);
-        // Advance the parsing index since a stem is multiple tokens.
-        index = parsed.index;
       }
+      // If syncopated with > or < notation, shift part of a beat
+      // between this stem and the previous one.
+      if (dotted && result.length) {
+        if (dotted > 0) {
+          t = (1 - Math.pow(0.5, dotted)) * parsed.stem.time;
+        } else {
+          t = (Math.pow(0.5, -dotted) - 1) * result[result.length - 1].time;
+        }
+        syncopateStem(result[result.length - 1], t);
+        syncopateStem(parsed.stem, -t);
+      }
+      dotted = 0;
+      // Slur all the notes contained within a strem.
+      if (accent.slurred) {
+        slurStem(parsed.stem, true);
+      }
+      // Add the stem to the sequence of stems for this voice.
+      result.push(parsed.stem);
+      // Advance the parsing index since a stem is multiple tokens.
+      index = parsed.index;
     }
     return result;
   }
@@ -1085,8 +1101,8 @@ var Instrument = (function() {
     var j, note, stemtime = stem.time, newtime = stemtime + t;
     stem.time = newtime;
     syncopateStem
-    for (j = 0; j < stem.note.length; ++j) {
-      note = stem.note[j];
+    for (j = 0; j < stem.notes.length; ++j) {
+      note = stem.notes[j];
       // Only adjust a note's duration if it matched the stem's duration.
       if (note.time == stemtime) { note.time = newtime; }
     }
@@ -1094,8 +1110,8 @@ var Instrument = (function() {
   // Marks everything in the stem with the slur attribute (or deletes it).
   function slurStem(stem, addSlur) {
     var j, note;
-    for (j = 0; j < stem.note.length; ++j) {
-      note = stem.note[j];
+    for (j = 0; j < stem.notes.length; ++j) {
+      note = stem.notes[j];
       if (addSlur) {
         note.slurred = true;
       } else if (note.slurred) {
@@ -1107,8 +1123,8 @@ var Instrument = (function() {
   function scaleStem(stem, s) {
     var j;
     stem.time *= s;
-    for (j = 0; j < stem.note.length; ++j) {
-      stem.note[j].time *= s;;
+    for (j = 0; j < stem.notes.length; ++j) {
+      stem.notes[j].time *= s;;
     }
   }
   // Parses notation of the form (3 or (5:2:10, which means to do
@@ -1151,7 +1167,7 @@ var Instrument = (function() {
   // Parses a stem, which may be a single note, or which may be
   // a chorded note.
   function parseStem(tokens, index, key, accent) {
-    var note = [],
+    var notes = [],
         duration = '', staccato = false,
         noteDuration, noteTime, velocity,
         lastNote = null, minStemTime = Infinity, j;
@@ -1177,7 +1193,7 @@ var Instrument = (function() {
             tie: false
           }
           lastNote.frequency = pitchToFrequency(lastNote.pitch);
-          note.push(lastNote);
+          notes.push(lastNote);
         } else if (/[xzXZ]/.test(tokens[index])) {
           // Grab a rest.
           lastNote = null;
@@ -1218,7 +1234,7 @@ var Instrument = (function() {
         // within a stem can be tied.
         if (index < tokens.length && '-' == tokens[index]) {
           if (lastNote) {
-            note[note.length - 1].tie = true;
+            notes[notes.length - 1].tie = true;
           }
           index++;
         }
@@ -1238,7 +1254,7 @@ var Instrument = (function() {
         time: 1
       }
       lastNote.frequency = pitchToFrequency(lastNote.pitch);
-      note.push(lastNote);
+      notes.push(lastNote);
     } else if (index < tokens.length && /^[xzXZ]$/.test(tokens[index])) {
       // Grab a rest - no pitch.
       index++;
@@ -1253,28 +1269,28 @@ var Instrument = (function() {
       // Apply the duration to all the ntoes in the stem.
       // NOTE: spec suggests multiplying this duration, but that
       // idiom is not seen (so far) in practice.
-      for (j = 0; j < note.length; ++j) {
-        note[j].duration = duration;
-        note[j].time = noteTime;
+      for (j = 0; j < notes.length; ++j) {
+        notes[j].duration = duration;
+        notes[j].time = noteTime;
       }
     }
     // Then look for a trailing tie marking.  Will tie every note in a chord.
     if (index < tokens.length && '-' == tokens[index]) {
       index++;
-      for (j = 0; j < note.length; ++j) {
-        note[j].tie = true;
+      for (j = 0; j < notes.length; ++j) {
+        notes[j].tie = true;
       }
     }
     if (accent.dynamics) {
       velocity = accent.dynamics;
-      for (j = 0; j < note.length; ++j) {
-        note[j].velocity = velocity;
+      for (j = 0; j < notes.length; ++j) {
+        notes[j].velocity = velocity;
       }
     }
     return {
       index: index,
       stem: {
-        note: note,
+        notes: notes,
         duration: duration,
         staccato: staccato,
         time: durationToTime(duration)
@@ -1520,7 +1536,7 @@ function makeWavetable(ac) {
       // The default filter settings to use for the piano wave.
       // TODO: this approach attenuates low notes too much -
       // this should be fixed.
-      defs: { wave: 'piano', gain: 0.3,
+      defs: { wave: 'piano', gain: 0.5,
               attack: 0.002, decay: 0.4, sustain: 0.005, release: 0.1,
               decayfollow: 0.7,
               cutoff: 800, cutfollow: 0.1, resonance: 1, detune: 1.001 }
