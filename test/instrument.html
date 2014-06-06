@@ -201,7 +201,7 @@ asyncTest("Plays Stairway with an Instrument.", function() {
   });
 });
 
-asyncTest("Test tied-note timing.", function() {
+asyncTest("Test note timing.", function() {
   AudioContext.resetTestLog();
   var startTick = currentTick(),
       ins = new Instrument(),
@@ -212,19 +212,21 @@ asyncTest("Test tied-note timing.", function() {
   ins.on('noteoff', function(e) {
     notelog.push('off' + e.midi + '-' + (currentTick() - startTick));
   });
-  // Play a tied note.
-  ins.play({tempo:120},"C-C", function() {
+  // Play a tied note, a mixed-fraction note, and a long note.
+  ins.play({tempo:120},"C-C D11/2 E16 ", function() {
     ok(AudioContext.methodlog.indexOf('gain1.connect') >= 0);
     ok(AudioContext.methodlog.indexOf('gain1.connect') < 2);
-    // One note should have sounded.
-    ok(AudioContext.methodlog.indexOf('osc1.connect') > 0);
-    ok(AudioContext.methodlog.indexOf('osc1.start') > 0);
-    ok(AudioContext.methodlog.indexOf('osc1.stop') > 0);
-    // But not a second note.
-    ok(AudioContext.methodlog.indexOf('osc2.start') < 0);
+    // Three notes should have sounded.
+    ok(AudioContext.methodlog.indexOf('osc3.connect') > 0);
+    ok(AudioContext.methodlog.indexOf('osc3.start') > 0);
+    ok(AudioContext.methodlog.indexOf('osc3.stop') > 0);
+    // But not a note beyond that.
+    ok(AudioContext.methodlog.indexOf('osc4.start') < 0);
     // Now test that we got all the callbacks, in order.
     deepEqual(notelog, [            // tempo: 120 = 500ms beats.
-        "on60-0", "off60-969",      // Full beat C4.
+        "on60-0", "off60-969",      // Full two-beat C4.
+        "on62-969", "off62-1688",   // One-and-a-half-beat D
+        "on64-1688", "off64-9616"   // 16 beat E
     ]);
     start();
   });
@@ -474,22 +476,22 @@ asyncTest("Test full ABC notation with a Beethoven Sonata.", function() {
         "on57-3845",
         "on60-3845",
         "on63-3845",
-        "off54-5773",
-        "off57-5773",
-        "off60-5773",
-        "off63-5773",
-        "on55-5773",
-        "on59-5773",
-        "on62-5773",
-        "off55-6742",
-        "off59-6742",
-        "off62-6742",
-        "on44-7226",
-        "off44-7679",
-        "on56-7695",
-        "on59-7695",
-        "on62-7695",
-        "on65-7695",
+        "off54-5805",
+        "off57-5805",
+        "off60-5805",
+        "off63-5805",
+        "on55-5805",
+        "on59-5805",
+        "on62-5805",
+        "off55-6743",
+        "off59-6743",
+        "off62-6743",
+        "on44-7227",
+        "off44-7680",
+        "on56-7696",
+        "on59-7696",
+        "on62-7696",
+        "on65-7696",
         "off56-10358",
         "off59-10358",
         "off62-10358",
@@ -522,16 +524,16 @@ asyncTest("Test full ABC notation with a Beethoven Sonata.", function() {
         "on59-11531",
         "on62-11531",
         "on68-11531",
-        "off59-13459",
-        "off62-13459",
-        "off68-13459",
-        "on60-13459",
-        "on63-13459",
-        "on67-13459",
-        "off51-14412",
-        "off60-14412",
-        "off63-14412",
-        "off67-14412"
+        "off59-13491",
+        "off62-13491",
+        "off68-13491",
+        "on60-13491",
+        "on63-13491",
+        "on67-13491",
+        "off51-14413",
+        "off60-14413",
+        "off63-14413",
+        "off67-14413"
     ]);
     start();
   });

@@ -746,7 +746,7 @@ var Instrument = (function() {
           voice: {}
         },
         context = result, timbre,
-        j, header, stems, key = {}, accent = {slurred: 0}, out, firstvoice;
+        j, header, stems, key = {}, accent = {}, voiceid, out;
     // Shifts context to a voice with the given id given.  If no id
     // given, then just sticks with the current voice.  If the current
     // voice is unnamed and empty, renames the current voice.
@@ -761,7 +761,7 @@ var Instrument = (function() {
         accent = context.accent;
       } else {
         // Start a new voice.
-        context = { id: id, accent: {} };
+        context = { id: id, accent: { slurred: 0 } };
         result.voice[id] = context;
         accent = context.accent;
       }
@@ -812,20 +812,24 @@ var Instrument = (function() {
           key = keysig(header[2]);
           startVoiceContext(firstVoiceName());
         }
+      } else if (/^\s*(?:%.*)?$/.test(lines[j])) {
+        // Skip blank and comment lines.
+        continue;
       } else {
-        // Parse a non-header line, looking for notes.
-        out = {};
-        stems = parseABCNotes(lines[j], key, accent, out);
-        if (out.voiceid) {
-          // Handle a note line that starts with [V:voiceid] as speced.
-          // (actually, in practice you see V:voiceid\n lines.)
-          startVoiceContext(out.voiceid);
-        }
-        if (stems && stems.length) {
+        // A non-blank non-header line should have notes.
+        voiceid = peekABCVoice(lines[j]);
+        if (voiceid) {
+          // If it declares a voice id, respect it.
+          startVoiceContext(voiceid);
+        } else {
+          // Otherwise, start a default voice.
           if (context === result) {
-            // If no voice has been selected, then use the first voice.
             startVoiceContext(firstVoiceName());
           }
+        }
+        // Parse the notes.
+        stems = parseABCNotes(lines[j], key, accent);
+        if (stems && stems.length) {
           // Push the line of stems into the voice.
           if (!('stems' in context)) { context.stems = []; }
           context.stems.push.apply(context.stems, stems);
@@ -990,6 +994,12 @@ var Instrument = (function() {
     }
     return result;
   }
+  // Peeks and looks for a prefix of the form [V:voiceid].
+  function peekABCVoice(line) {
+    var match = /^\[V:([^\]\s]*)\]/.exec(line);
+    if (!match) return null;
+    return match[1];
+  }
   // Parses a single line of ABC notes (i.e., not a header line).
   //
   // We process an ABC song stream by dividing it into tokens, each of
@@ -1012,7 +1022,7 @@ var Instrument = (function() {
   // Then a song is just a sequence of stems interleaved with other
   // decorations such as dynamics markings and measure delimiters.
   var ABCtoken = /(?:^\[V:[^\]\s]*\])|\s+|%[^\n]*|![^\s!:|\[\]]*!|\+[^+|!]*\+|\[|\]|>+|<+|(?:(?:\^\^|\^|__|_|=|)[A-Ga-g](?:,+|'+|))|\(\d+(?::\d+){0,2}|\d*\/\d+|\d+\/?|\/+|[xzXZ]|\[?\|\]?|:?\|:?|::|./g;
-  function parseABCNotes(str, key, accent, out) {
+  function parseABCNotes(str, key, accent) {
     var tokens = str.match(ABCtoken), result = [], parsed = null,
         index = 0, dotted = 0, beatlet = null, t;
     if (!tokens) {
@@ -1021,9 +1031,8 @@ var Instrument = (function() {
     while (index < tokens.length) {
       // Ignore %comments and !markings!
       if (/^[\s%]/.test(tokens[index])) { index++; continue; }
-      // Grab a voice id out of [V:id]
       if (/^\[V:\S*\]$/.test(tokens[index])) {
-        out.voiceid = tokens[index].substring(3, tokens[index].length - 1);
+        // Voice id from [V:id] is handled in peekABCVoice.
         index++;
         continue;
       }
@@ -1370,10 +1379,12 @@ var Instrument = (function() {
     // Handle mixed frations:
     ilen = 0;
     n = (m[1] ? parseFloat(m[1]) : 1);
-    while (ilen + 1 < m[1].length && n > d) {
-      ilen += 1
-      i = parseFloat(m[1].substring(0, ilen))
-      n = parseFloat(m[1].substring(ilen))
+    if (m[2]) {
+      while (ilen + 1 < m[1].length && n > d) {
+        ilen += 1
+        i = parseFloat(m[1].substring(0, ilen))
+        n = parseFloat(m[1].substring(ilen))
+      }
     }
     return i + (n / d);
   }
