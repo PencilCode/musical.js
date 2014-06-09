@@ -1390,7 +1390,7 @@ var Instrument = (function() {
   }
 
   // The default sound is a square wave with a pretty quick decay to zero.
-  var defaultTimbre = {
+  var defaultTimbre = Instrument.defaultTimbre = {
     wave: 'square',   // Oscillator type.
     gain: 0.1,        // Overall gain at maximum attack.
     attack: 0.002,    // Attack time at the beginning of a tone.
