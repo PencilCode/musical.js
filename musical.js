@@ -56,7 +56,7 @@ function audioCurrentStartTime() {
   // A delay could be added below to introduce a universal delay in
   // all beginning sounds (without skewing durations for scheduled
   // sequences).
-  atop.currentStart = atop.ac.currentTime /* + 0.0 delay */;
+  atop.currentStart = Math.max(0.25, atop.ac.currentTime /* + 0.0 delay */);
   setTimeout(function() { atop.currentStart = null; }, 0);
   return atop.currentStart;
 }
@@ -1460,10 +1460,30 @@ var Instrument = (function() {
     return result;
   }
 
+  var whiteNoiseBuf = null;
+  function getWhiteNoiseBuf() {
+    if (whiteNoiseBuf == null) {
+      var ac = getAudioTop().ac,
+          bufferSize = 2 * ac.sampleRate,
+          whiteNoiseBuf = ac.createBuffer(1, bufferSize, ac.sampleRate),
+          output = whiteNoiseBuf.getChannelData(0);
+      for (var i = 0; i < bufferSize; i++) {
+        output[i] = Math.random() * 2 - 1;
+      }
+    }
+    return whiteNoiseBuf;
+  }
+
   // This utility function creates an oscillator at the given frequency
   // and the given wavename.  It supports lookups in a static wavetable,
   // defined right below.
   function makeOscillator(atop, wavename, freq) {
+    if (wavename == 'noise') {
+      var whiteNoise = atop.ac.createBufferSource();
+      whiteNoise.buffer = getWhiteNoiseBuf();
+      whiteNoise.loop = true;
+      return whiteNoise;
+    }
     var wavetable = atop.wavetable, o = atop.ac.createOscillator(),
         k, pwave, bwf, wf;
     try {
