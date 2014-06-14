@@ -1521,6 +1521,12 @@ var Instrument = (function() {
     return o;
   }
 
+  // Accepts either an ABC pitch or a midi number and converts to midi.
+  Instrument.toMidi = function(n) {
+    if (typeof(n) == 'string') { return pitchToMidi(n); }
+    return n;
+  }
+
   return Instrument;
 })();
 
