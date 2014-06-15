@@ -1,0 +1,67 @@
+<script src="lib/qunit.js"></script>
+<script src="../musical.js"></script>
+<link href="lib/qunit.css" rel="stylesheet">
+<body>
+<div id="qunit"></div>
+<script>
+module("Test of the Instrument conversions.");
+asyncTest("Convert from pitch to midi.", function() {
+  equal(Instrument.pitchToMidi('_B,'), 58);
+  equal(Instrument.pitchToMidi('B,'), 59);
+  equal(Instrument.pitchToMidi('C'), 60);
+  equal(Instrument.pitchToMidi('^C'), 61);
+  equal(Instrument.pitchToMidi('D'), 62);
+  equal(Instrument.pitchToMidi('^D'), 63);
+  equal(Instrument.pitchToMidi('E'), 64);
+  equal(Instrument.pitchToMidi('F'), 65);
+  equal(Instrument.pitchToMidi('G'), 67);
+  equal(Instrument.pitchToMidi('A'), 69);
+  equal(Instrument.pitchToMidi('B'), 71);
+  equal(Instrument.pitchToMidi('c'), 72);
+  equal(Instrument.pitchToMidi('d'), 74);
+  equal(Instrument.pitchToMidi('e'), 76);
+  equal(Instrument.pitchToMidi('f'), 77);
+  equal(Instrument.pitchToMidi('g'), 79);
+  equal(Instrument.pitchToMidi('a'), 81);
+  equal(Instrument.pitchToMidi('b'), 83);
+  equal(Instrument.pitchToMidi('^b'), 84);
+  equal(Instrument.pitchToMidi("^^b''"), 85 + 24);
+  equal(Instrument.pitchToMidi('^^^b,,,'), 86 - 36);
+  equal(Instrument.pitchToMidi("_b'''"), 82 + 36);
+  equal(Instrument.pitchToMidi("____b,,'',"), 79 - 12);
+  start();
+});
+asyncTest("Convert from midi to pitch.", function() {
+  equal(Instrument.midiToPitch(58), "_B,");
+  equal(Instrument.midiToPitch(59), "B,");
+  equal(Instrument.midiToPitch(60), "C");
+  equal(Instrument.midiToPitch(61), "^C");
+  equal(Instrument.midiToPitch(62), "D");
+  equal(Instrument.midiToPitch(63), "_E");
+  equal(Instrument.midiToPitch(64), "E");
+  equal(Instrument.midiToPitch(65), "F");
+  equal(Instrument.midiToPitch(66), "^F");
+  equal(Instrument.midiToPitch(67), "G");
+  equal(Instrument.midiToPitch(68), "_A");
+  equal(Instrument.midiToPitch(69), "A");
+  equal(Instrument.midiToPitch(70), "_B");
+  equal(Instrument.midiToPitch(71), "B");
+  equal(Instrument.midiToPitch(72), "c");
+  equal(Instrument.midiToPitch(73), "^c");
+  equal(Instrument.midiToPitch(74), "d");
+  equal(Instrument.midiToPitch(75), "_e");
+  equal(Instrument.midiToPitch(76), "e");
+  equal(Instrument.midiToPitch(77), "f");
+  equal(Instrument.midiToPitch(78), "^f");
+  equal(Instrument.midiToPitch(79), "g");
+  equal(Instrument.midiToPitch(80), "_a");
+  equal(Instrument.midiToPitch(81), "a");
+  equal(Instrument.midiToPitch(82), "_b");
+  equal(Instrument.midiToPitch(83), "b");
+  equal(Instrument.midiToPitch(84), "c'");
+  equal(Instrument.midiToPitch(99), "_e''");
+  equal(Instrument.midiToPitch(30), "^F,,,");
+  start();
+});
+</script>
+

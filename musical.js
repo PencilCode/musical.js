@@ -1011,7 +1011,7 @@ var Instrument = (function() {
       key = /^[a-g][#b]?/.exec(k) || '';
     }
     var result = accidentals(sigcodes[key]);
-    var extras = keyname.substr(key.length).match(/(__|_|=|\^\^|\^)[a-g]/ig);
+    var extras = keyname.substr(key.length).match(/(_+|=|\^+)[a-g]/ig);
     if (extras) {
       for (j = 0; j < extras.length; ++j) {
         var note = extras[j].charAt(extras[j].length - 1).toUpperCase();
@@ -1051,7 +1051,7 @@ var Instrument = (function() {
   //
   // Then a song is just a sequence of stems interleaved with other
   // decorations such as dynamics markings and measure delimiters.
-  var ABCtoken = /(?:^\[V:[^\]\s]*\])|\s+|%[^\n]*|![^\s!:|\[\]]*!|\+[^+|!]*\+|\[|\]|>+|<+|(?:(?:\^\^|\^|__|_|=|)[A-Ga-g](?:,+|'+|))|\(\d+(?::\d+){0,2}|\d*\/\d+|\d+\/?|\/+|[xzXZ]|\[?\|\]?|:?\|:?|::|./g;
+  var ABCtoken = /(?:^\[V:[^\]\s]*\])|\s+|%[^\n]*|![^\s!:|\[\]]*!|\+[^+|!]*\+|\[|\]|>+|<+|(?:(?:\^+|_+|=|)[A-Ga-g](?:,+|'+|))|\(\d+(?::\d+){0,2}|\d*\/\d+|\d+\/?|\/+|[xzXZ]|\[?\|\]?|:?\|:?|::|./g;
   function parseABCNotes(str, key, accent) {
     var tokens = str.match(ABCtoken), result = [], parsed = null,
         index = 0, dotted = 0, beatlet = null, t;
@@ -1358,7 +1358,7 @@ var Instrument = (function() {
   // that have accumulated within the measure, and also saving
   // explicit accidentals to continue to apply in the measure.
   function applyAccent(pitch, key, accent) {
-    var m = /^(\^\^|\^|__|_|=|)([A-Ga-g])(.*)$/.exec(pitch), letter;
+    var m = /^(\^+|_+|=|)([A-Ga-g])(.*)$/.exec(pitch), letter;
     if (!m) { return pitch; }
     // Note that an accidental in one octave applies in other octaves.
     letter = m[2].toUpperCase();
@@ -1382,19 +1382,38 @@ var Instrument = (function() {
   function midiToFrequency(midi) {
     return 440 * Math.pow(2, (midi - 69) / 12);
   }
+  // Some constants.
+  var noteNum =
+      {C:0,D:2,E:4,F:5,G:7,A:9,B:11,c:12,d:14,e:16,f:17,g:19,a:21,b:23};
+  var accSym =
+      { '^':1, '': 0, '=':0, '_':-1 };
+  var noteName =
+      ['C', '^C', 'D', '_E', 'E', 'F', '^F', 'G', '_A', 'A', '_B', 'B',
+       'c', '^c', 'd', '_e', 'e', 'f', '^f', 'g', '_a', 'a', '_b', 'b'];
   // Converts a frequency in Hz to the closest midi number.
   function frequencyToMidi(freq) {
     return Math.round(69 + Math.log(freq / 440) * 12 / Math.LN2);
   }
   // Converts an ABC pitch (such as "^G,,") to a midi note number.
   function pitchToMidi(pitch) {
-    var m = /^(\^\^|\^|__|_|=|)([A-Ga-g])([,']*)$/.exec(pitch);
+    var m = /^(\^+|_+|=|)([A-Ga-g])([,']*)$/.exec(pitch);
     if (!m) { return null; }
-    var n = {C:0,D:2,E:4,F:5,G:7,A:9,B:11,c:12,d:14,e:16,f:17,g:19,a:21,b:23};
-    var a = { '^^':2, '^':1, '': 0, '=':0, '_':-1, '__':-2 };
     var octave = m[3].replace(/,/g, '').length - m[3].replace(/'/g, '').length;
-    var semitone = n[m[2]] + a[m[1]] + 12 * octave;
+    var semitone =
+        noteNum[m[2]] + accSym[m[1].charAt(0)] * m[1].length + 12 * octave;
     return semitone + 60; // 60 = midi code middle "C".
+  }
+  // Converts a midi number to an ABC notation pitch.
+  function midiToPitch(midi) {
+    var index = ((midi - 72) % 12);
+    if (midi > 60 || index != 0) { index += 12; }
+    var octaves = Math.round((midi - index - 60) / 12),
+        result = noteName[index];
+    while (octaves != 0) {
+      result += octaves > 0 ? "'" : ",";
+      octaves += octaves > 0 ? -1 : 1;
+    }
+    return result;
   }
   // Converts an ABC pitch to a frequency in Hz.
   function pitchToFrequency(pitch) {
@@ -1522,8 +1541,14 @@ var Instrument = (function() {
   }
 
   // Accepts either an ABC pitch or a midi number and converts to midi.
-  Instrument.toMidi = function(n) {
+  Instrument.pitchToMidi = function(n) {
     if (typeof(n) == 'string') { return pitchToMidi(n); }
+    return n;
+  }
+
+  // Accepts either an ABC pitch or a midi number and converts to ABC pitch.
+  Instrument.midiToPitch = function(n) {
+    if (typeof(n) == 'number') { return midiToPitch(n); }
     return n;
   }
 
