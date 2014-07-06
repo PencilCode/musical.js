@@ -1,0 +1,30 @@
+<p>This is the example from
+<a href="http://abcnotation.com/tunePage?a=trillian.mit.edu/~jc/music/abc/mirror/musicaviva.com/england/once-i-had-a-sweetheart/0000">http://abcnotation.com/tunePage?a=trillian.mit.edu/~jc/music/abc/mirror/musicaviva.com/england/once-i-had-a-sweetheart/0000</a>
+<script src="../../musical.js"></script>
+
+<script>
+
+var inst = new Instrument('piano');
+
+function scale() {
+  // Change the inst to sound more like a inst.
+  // inst.setTimbre('square');
+  inst.play(
+    "X:4841\n" +
+    "T:Once I had a sweetheart\n" +
+    "O:england\n" +
+    "C:anon.\n" +
+    "M:3/4\n" +
+    "L:1/8\n" +
+    "K:Cmix\n" +
+    "Q:1/4=120\n" +
+    "G2|\"C\"(ED) C3 C|\"Bb\"B B3 B2|\"F\"(AG) F2 A2|\"C\"G6|\"C\"z4:|c2|\n" +
+    "\"C\"(cG3) B2|\"F\"(AG) F3 A|\"Bb\"(BD3) F2|\"C\"(DC) C4|\"C\"z4 C2|\n" +
+    "\"Cm\"(cd_e2) d2|\"Gm\"(cB) G3 F|\"Cm\"G2 C2 \"Gm\"B,2|\"C\"C6-|\"C\"C6|]\n"
+  );
+}
+
+scale();
+
+</script>
+
