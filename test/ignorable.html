@@ -1,0 +1,188 @@
+<script src="lib/qunit.js"></script>
+<script src="../musical.js"></script>
+<link href="lib/qunit.css" rel="stylesheet">
+<body>
+<div id="qunit"></div>
+<script>
+function setupFakeAudioContext() {
+  window.AudioContext = (function() {
+    var interval = 1/64,
+        methodlog = [],
+        ocounts = {};
+    function makeLoggingMethod(oname, fname) {
+      return function() {
+        var mname = oname + '.' + fname;
+        methodlog.push(mname);
+      }
+    }
+    function makeLoggingObject(oname) {
+      if (!ocounts[oname]) {
+        ocounts[oname] = 0;
+      }
+      ocounts[oname] += 1;
+      oname += ocounts[oname];
+      return {
+        gain: {
+          setValueAtTime: function() {},
+          linearRampToValueAtTime: function() {},
+          setTargetAtTime: function() {},
+          cancelScheduledValues: function() {},
+          value: null
+        },
+        frequency: {
+          value: null
+        },
+        Q: {
+          value: null
+        },
+        connect: makeLoggingMethod(oname, 'connect'),
+        disconnect: makeLoggingMethod(oname, 'disconnect'),
+        start: makeLoggingMethod(oname, 'start'),
+        stop: makeLoggingMethod(oname, 'stop')
+      };
+    }
+    function makeCtor(oname) {
+      return function() {
+        return makeLoggingObject(oname);
+      };
+    }
+    function AudioContext() {
+      var ac = {
+        destination: null,
+        currentTime: 0,
+        createGain: makeCtor('gain'),
+        createDynamicsCompressor: makeCtor('dcn'),
+        createBiquadFilter: makeCtor('filter'),
+        createOscillator: makeCtor('osc')
+      };
+      function advance() {
+        ac.currentTime += interval;
+        setTimeout(advance, Math.floor(1000 * interval));
+      }
+      setTimeout(advance, Math.floor(1000 * interval));
+      return ac;
+    }
+    AudioContext.resetTestLog = function() {
+      methodlog.length = 0;
+      ocounts = {};
+    }
+    AudioContext.methodlog = methodlog;
+    return AudioContext;
+  })();
+}
+function setupFakeTimer(msLimit, whendone) {
+  if (!msLimit) msLimit = 60 * 60 * 1000;
+  if (!window.originalSetTimeout) {
+    window.originalSetTimeout = window.setTimeout;
+  }
+  var ost = window.originalSetTimeout;
+  var timeouts = [];
+  var now = 0;
+  var currentTimeout = 0;
+  function nextEvent() {
+    currentTimeout = null;
+    var minTime = Infinity, index = -1, fn;
+    for (var j = 0; j < timeouts.length; ++j) {
+      if (timeouts[j].time < minTime) {
+        minTime = timeouts[j].time;
+        index = j;
+      }
+    }
+    if (index >= 0) {
+      fn = timeouts[index].fn;
+      timeouts.splice(index, 1);
+      now = minTime;
+      if (now < msLimit) {
+        fn();
+      }
+    } else {
+      // No timeouts scheduled? Advance by a second to zap to the end.
+      now += 1000;
+    }
+    if (now < msLimit) {
+      currentTimeout = ost(nextEvent, 0);
+    } else {
+      if (whendone) { whendone(); }
+      window.setTimeout = ost;
+    }
+  }
+  window.setTimeout = function(fn, num) {
+    if (isNaN(num) || Math.floor(num) != num) {
+      console.trace('non-integer delay', num);
+    }
+    var when = now + Math.max(0, num);
+    if (!isNaN(when)) {
+      timeouts.push({time: when, fn: fn});
+      if (!currentTimeout) {
+        currentTimeout = ost(nextEvent, 0);
+      }
+    }
+  }
+  window.currentTick = function() { return now; }
+}
+// Apply a sort on the note log to canonicalize the order.
+function sortNoteLog(notes) {
+  notes.sort(function(astr, bstr) {
+    var a = astr.split('-'), b = bstr.split('-'),
+        at = Number(a[1]), bt = Number(b[1]);
+    if (at != bt) { return at - bt; }
+    if (a[0] < b[0]) { return -1; }
+    if (a[0] > b[0]) { return 1; }
+    return 0;
+  });
+}
+setupFakeTimer();
+setupFakeAudioContext();
+
+module("Test of ignorable notation.");
+asyncTest("Plays song with chords.", function() {
+  // reset methodlog
+  AudioContext.resetTestLog();
+  var ins = new Instrument(),
+      notelog = [];
+  ins.on('noteon', function(e) { notelog.push('on' + e.midi); });
+  ins.on('noteoff', function(e) { notelog.push('off' + e.midi); });
+  // Play 16 tones (13 beats) from stairway.
+  ins.play(
+    "X:4841\n" +
+    "T:Once I had a sweetheart\n" +
+    "O:england\n" +
+    "C:anon.\n" +
+    "M:3/4\n" +
+    "L:1/8\n" +
+    "K:Cmix\n" +
+    "Q:120\n" +
+    "G2|\"C\"(ED) C3 C|\"Bb\"B B3 B2\n",
+  function() {
+    ok(AudioContext.methodlog.indexOf('gain1.connect') >= 0);
+    ok(AudioContext.methodlog.indexOf('gain1.connect') < 2);
+    // We should have hooked up, started, and stopped the 8th tone.
+    ok(AudioContext.methodlog.indexOf('osc8.connect') > 0);
+    ok(AudioContext.methodlog.indexOf('osc8.start') > 0);
+    ok(AudioContext.methodlog.indexOf('osc8.stop') > 0);
+    // And there should be no 9th tone.
+    ok(AudioContext.methodlog.indexOf('osc9.start') < 0);
+    // Now test that we got all the callbacks, in order.
+    deepEqual(notelog, [
+        "on67",
+        "off67",
+        "on63",
+        "off63",
+        "on62",
+        "off62",
+        "on60",
+        "off60",
+        "on60",
+        "off60",
+        "on70",
+        "off70",
+        "on70",
+        "off70",
+        "on70",
+        "off70"
+    ]);
+    start();
+  });
+});
+</script>
+
