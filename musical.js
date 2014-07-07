@@ -1062,41 +1062,49 @@ var Instrument = (function() {
   var ABCtoken = /(?:^\[V:[^\]\s]*\])|\s+|%[^\n]*|![^\s!:|\[\]]*!|\+[^+|!]*\+|[_<>@^]?"[^"]*"|\[|\]|>+|<+|(?:(?:\^+|_+|=|)[A-Ga-g](?:,+|'+|))|\(\d+(?::\d+){0,2}|\d*\/\d+|\d+\/?|\/+|[xzXZ]|\[?\|\]?|:?\|:?|::|./g;
   function parseABCNotes(str, key, accent) {
     var tokens = str.match(ABCtoken), result = [], parsed = null,
-        index = 0, dotted = 0, beatlet = null, t;
+        index = 0, dotted = 0, beatlet = null, t, loc = 0;
     if (!tokens) {
       return null;
     }
     while (index < tokens.length) {
       // Ignore %comments and !markings!
-      if (/^[\s%]/.test(tokens[index])) { index++; continue; }
+      if (/^[\s%]/.test(tokens[index])) {
+        loc += tokens[index].length; index++; continue; }
       if (/^\[V:\S*\]$/.test(tokens[index])) {
         // Voice id from [V:id] is handled in peekABCVoice.
+        loc += tokens[index].length;
         index++;
         continue;
       }
       // Handled dotted notation abbreviations.
       if (/</.test(tokens[index])) {
+        loc += tokens[index].length;
         dotted = -tokens[index++].length;
         continue;
       }
       if (/>/.test(tokens[index])) {
+        loc += tokens[index].length;
         dotted = tokens[index++].length;
         continue;
       }
       if (/^\(\d+(?::\d+)*/.test(tokens[index])) {
+        loc += tokens[index].length;
         beatlet = parseBeatlet(tokens[index++]);
         continue;
       }
       if (/^[!+].*[!+]$/.test(tokens[index])) {
+        loc += tokens[index].length;
         parseDecoration(tokens[index++], accent);
         continue;
       }
       if (/^.?".*"$/.test(tokens[index])) {
         // Ignore double-quoted tokens (chords and general text annotations).
+        loc += tokens[index].length;
         index++;
         continue;
       }
       if (/^[()]$/.test(tokens[index])) {
+        loc += tokens[index].length;
         if (tokens[index++] == '(') {
           accent.slurred += 1;
         } else {
@@ -1119,12 +1127,14 @@ var Instrument = (function() {
             delete accent[t];
           }
         }
+        loc += tokens[index].length;
         index++;
         continue;
       }
-      parsed = parseStem(tokens, index, key, accent);
+      parsed = parseStem(tokens, index, loc, key, accent);
       // Skip unparsable bits
       if (parsed === null) {
+        loc += tokens[index].length;
         index++;
         continue;
       }
@@ -1155,6 +1165,7 @@ var Instrument = (function() {
       // Add the stem to the sequence of stems for this voice.
       result.push(parsed.stem);
       // Advance the parsing index since a stem is multiple tokens.
+      loc += parsed.stem.strlen;
       index = parsed.index;
     }
     return result;
@@ -1229,28 +1240,32 @@ var Instrument = (function() {
   }
   // Parses a stem, which may be a single note, or which may be
   // a chorded note.
-  function parseStem(tokens, index, key, accent) {
+  function parseStem(tokens, index, loc, key, accent) {
     var notes = [],
         duration = '', staccato = false,
         noteDuration, noteTime, velocity,
-        lastNote = null, minStemTime = Infinity, j;
+        lastNote = null, minStemTime = Infinity, strlen = 0, j;
     // A single staccato marking applies to the entire stem.
     if (index < tokens.length && '.' == tokens[index]) {
       staccato = true;
+      strlen += 1;
       index++;
     }
     if (index < tokens.length && tokens[index] == '[') {
       // Deal with [CEG] chorded notation.
+      strlen += 1;
       index++;
       // Scan notes within the chord.
       while (index < tokens.length) {
         // Ignore and space and %comments.
         if (/^[\s%]/.test(tokens[index])) {
+          strlen += tokens[index].length;
           index++;
           continue;
         }
         if (/[A-Ga-g]/.test(tokens[index])) {
           // Grab a pitch.
+          strlen += tokens[index].length;
           lastNote = {
             pitch: applyAccent(tokens[index++], key, accent),
             tie: false
@@ -1260,10 +1275,12 @@ var Instrument = (function() {
         } else if (/[xzXZ]/.test(tokens[index])) {
           // Grab a rest.
           lastNote = null;
+          strlen += tokens[index].length;
           index++;
         } else if ('.' == tokens[index]) {
           // A staccato mark applies to the entire stem.
           staccato = true;
+          strlen += tokens[index].length;
           index++;
           continue;
         } else {
@@ -1299,6 +1316,7 @@ var Instrument = (function() {
           if (lastNote) {
             notes[notes.length - 1].tie = true;
           }
+          strlen += tokens[index].length;
           index++;
         }
       }
@@ -1307,9 +1325,11 @@ var Instrument = (function() {
       if (tokens[index] != ']') {
         return null;
       }
+      strlen += tokens[index].length;
       index++;
     } else if (index < tokens.length && /[A-Ga-g]/.test(tokens[index])) {
       // Grab a single note.
+      strlen += tokens[index].length;
       lastNote = {
         pitch: applyAccent(tokens[index++], key, accent),
         tie: false,
@@ -1320,6 +1340,7 @@ var Instrument = (function() {
       notes.push(lastNote);
     } else if (index < tokens.length && /^[xzXZ]$/.test(tokens[index])) {
       // Grab a rest - no pitch.
+      strlen += tokens[index].length;
       index++;
     } else {
       // Something we don't recognize - not a stem.
@@ -1327,6 +1348,7 @@ var Instrument = (function() {
     }
     // Right after a [chord], note, or rest, look for a duration marking.
     if (index < tokens.length && /^(?![\s%!]).*[\d\/]/.test(tokens[index])) {
+      strlen += tokens[index].length;
       duration = tokens[index++];
       noteTime = durationToTime(duration);
       // Apply the duration to all the ntoes in the stem.
@@ -1339,6 +1361,7 @@ var Instrument = (function() {
     }
     // Then look for a trailing tie marking.  Will tie every note in a chord.
     if (index < tokens.length && '-' == tokens[index]) {
+      strlen += tokens[index].length;
       index++;
       for (j = 0; j < notes.length; ++j) {
         notes[j].tie = true;
@@ -1356,6 +1379,8 @@ var Instrument = (function() {
         notes: notes,
         duration: duration,
         staccato: staccato,
+        strloc: loc,
+        strlen: strlen,
         time: durationToTime(duration)
       }
     };
