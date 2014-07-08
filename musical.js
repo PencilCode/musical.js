@@ -1013,7 +1013,7 @@ var Instrument = (function() {
       } else if (scale == 'min') {
         key = k.substr(0, scale.index + 1);
       } else {
-        key = k.substr(0, scale.index + scale.length);
+        key = k.substr(0, scale.index + scale[0].length);
       }
     } else {
       key = /^[a-g][#b]?/.exec(k) || '';
