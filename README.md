@@ -33,14 +33,16 @@ Three main functions in the API:
   Timbre can be changed later using instrument.setTimbre.  See an
   example below.
 
-* `instrument.tone(frequency [,volume, duration, delay, timbre])`
+* `instrument.tone(frequency [,volume, duration, delay, timbre, origin])`
   plays a single tone for a little while.  Frequency may be specified
   as a positive number (in Hz) or a negative integer (a midi note
   number), or a pitch string like '^C,' (ABC notation for a pitch).
-  Other arguments are optional: volume defaults to 1, duration
-  defaults to 10 seconds, delay defaults to zero (play right now),
-  and timbre defaults to null, which applies the instrument's default
-  timbre.
+  Other arguments are optional: `volume` defaults to 1, `duration`
+  defaults to 10 seconds, `delay` defaults to zero (play right now),
+  and `timbre` defaults to null, which applies the instrument's default
+  timbre. `origin` defaults to null and is visible in the record passed
+  to the event listener in order to support visual feedback by highlighting 
+  corresponding objects on the user interface.
 
 * `instrument.play(abcnotation)` plays a song as expressed in ABC
   notation, as can be found on the web.  See examples below.
