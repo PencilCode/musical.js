@@ -205,7 +205,7 @@ asyncTest("Test note timing.", function() {
   AudioContext.resetTestLog();
   var startTick = currentTick(),
       ins = new Instrument(),
-      notelog = [];
+      notelog = []; 
   ins.on('noteon', function(e) {
     notelog.push('on' + e.midi + '-' + (currentTick() - startTick));
   });
@@ -357,6 +357,47 @@ asyncTest("Test multiple voices with a Bach Minuet.", function() {
     ]);
     start();
   });
+});
+
+asyncTest("Passing an origin object to callbacks.", function() {
+  AudioContext.resetTestLog();
+  var startTick = currentTick(),
+      ins = new Instrument(),
+      notelog = [];
+
+  // Track events
+  ins.on('noteon', function(e) {
+    notelog.push('on' + e.midi + '-' + (currentTick() - startTick) + '_{' + e.origin + '}');
+  });
+
+  ins.on('noteoff', function(e) {
+    notelog.push('off' + e.midi + '-' + (currentTick() - startTick) + '_{' + e.origin + '}');
+  });
+
+  // play the game
+  //function(pitch, velocity, duration, delay, timbre, origin) {
+
+  ins.tone('C', 1   , 0.5, null, null, 'origin_1');
+  ins.tone('D', 1,    0.5, null, null, 'origin_2');
+  ins.tone('D', 100,    1,  0.5, null, 'origin_3');
+  ins.tone('D', 100,    1,  0.6, null, 'origin_4');
+  ins.tone('D', 100,    1,    2, null, 'origin_5');
+
+  setTimeout(function() {
+    deepEqual(notelog, [
+        "on60-0_{origin_1}",
+        "on62-0_{origin_2}",
+        "off60-500_{origin_1}",
+        "off62-500_{origin_2}",
+        "on62-500_{origin_3}",
+        "off62-600_{origin_3}",
+        "on62-600_{origin_4}",
+        "off62-1600_{origin_4}",
+        "on62-2000_{origin_5}",
+        "off62-3000_{origin_5}"
+      ]); 
+    start();
+  }, 4000);
 });
 
 asyncTest("Test realtime Piano.", function() {
