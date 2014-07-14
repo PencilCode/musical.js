@@ -317,17 +317,17 @@ asyncTest("Test multiple voices with a Bach Minuet.", function() {
 
 asyncTest("Passing an origin object to callbacks.", function() {
   AudioContext.resetTestLog();
-  var startTick = currentTick(),
+  var startTick = clock.now,
       ins = new Instrument(),
       notelog = [];
 
   // Track events
   ins.on('noteon', function(e) {
-    notelog.push('on' + e.midi + '-' + (currentTick() - startTick) + '_{' + e.origin + '}');
+    notelog.push('on' + e.midi + '-' + (clock.now - startTick) + '_{' + e.origin + '}');
   });
 
   ins.on('noteoff', function(e) {
-    notelog.push('off' + e.midi + '-' + (currentTick() - startTick) + '_{' + e.origin + '}');
+    notelog.push('off' + e.midi + '-' + (clock.now - startTick) + '_{' + e.origin + '}');
   });
 
   // play the game
@@ -354,6 +354,8 @@ asyncTest("Passing an origin object to callbacks.", function() {
       ]); 
     start();
   }, 4000);
+  clock.tick(20000);
+
 });
 
 asyncTest("Test realtime Piano.", function() {
