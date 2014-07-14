@@ -12,9 +12,11 @@ module.exports = function(grunt) {
           destPrefix: "test/lib"
         },
         files: {
-          "qunit.js" : "qunit/qunit/qunit.js",
-          "qunit.css" : "qunit/qunit/qunit.css",
-          "require.js" : "requirejs/require.js"
+          "qunit.js": "qunit/qunit/qunit.js",
+          "qunit.css": "qunit/qunit/qunit.css",
+          "require.js": "requirejs/require.js",
+          "sinon.js": "sinonjs-built/lib/sinon.js",
+          "fake_timers.js": "sinonjs-built/lib/sinon/util/fake_timers.js"
         }
       }
     },

@@ -551,7 +551,7 @@ var Instrument = (function() {
     earliest = Math.min(
        earliest, this._minQueueTime - Instrument.dequeueTime);
 
-    delay = Math.max(0, earliest - this._atop.ac.currentTime);
+    delay = Math.max(0.001, earliest - this._atop.ac.currentTime);
 
     // If there are no future events, then we do not need a timer.
     if (isNaN(delay) || delay == Infinity) { return; }

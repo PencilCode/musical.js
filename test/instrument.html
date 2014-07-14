@@ -1,9 +1,11 @@
 <script src="lib/qunit.js"></script>
+<script src="lib/fake_timers.js"></script>
 <script src="../musical.js"></script>
 <link href="lib/qunit.css" rel="stylesheet">
 <body>
 <div id="qunit"></div>
 <script>
+var clock = sinon.useFakeTimers();
 function setupFakeAudioContext() {
   window.AudioContext = (function() {
     var interval = 1/64,
@@ -49,17 +51,16 @@ function setupFakeAudioContext() {
     function AudioContext() {
       var ac = {
         destination: null,
-        currentTime: 0,
         createGain: makeCtor('gain'),
         createDynamicsCompressor: makeCtor('dcn'),
         createBiquadFilter: makeCtor('filter'),
         createOscillator: makeCtor('osc')
       };
-      function advance() {
-        ac.currentTime += interval;
-        setTimeout(advance, Math.floor(1000 * interval));
-      }
-      setTimeout(advance, Math.floor(1000 * interval));
+      Object.defineProperty(ac, 'currentTime', {
+        get: function() {
+          return clock.now / 1000.0;
+        }
+      });
       return ac;
     }
     AudioContext.resetTestLog = function() {
@@ -69,56 +70,6 @@ function setupFakeAudioContext() {
     AudioContext.methodlog = methodlog;
     return AudioContext;
   })();
-}
-function setupFakeTimer(msLimit, whendone) {
-  if (!msLimit) msLimit = 60 * 60 * 1000;
-  if (!window.originalSetTimeout) {
-    window.originalSetTimeout = window.setTimeout;
-  }
-  var ost = window.originalSetTimeout;
-  var timeouts = [];
-  var now = 0;
-  var currentTimeout = 0;
-  function nextEvent() {
-    currentTimeout = null;
-    var minTime = Infinity, index = -1, fn;
-    for (var j = 0; j < timeouts.length; ++j) {
-      if (timeouts[j].time < minTime) {
-        minTime = timeouts[j].time;
-        index = j;
-      }
-    }
-    if (index >= 0) {
-      fn = timeouts[index].fn;
-      timeouts.splice(index, 1);
-      now = minTime;
-      if (now < msLimit) {
-        fn();
-      }
-    } else {
-      // No timeouts scheduled? Advance by a second to zap to the end.
-      now += 1000;
-    }
-    if (now < msLimit) {
-      currentTimeout = ost(nextEvent, 0);
-    } else {
-      if (whendone) { whendone(); }
-      window.setTimeout = ost;
-    }
-  }
-  window.setTimeout = function(fn, num) {
-    if (isNaN(num) || Math.floor(num) != num) {
-      console.trace('non-integer delay', num);
-    }
-    var when = now + Math.max(0, num);
-    if (!isNaN(when)) {
-      timeouts.push({time: when, fn: fn});
-      if (!currentTimeout) {
-        currentTimeout = ost(nextEvent, 0);
-      }
-    }
-  }
-  window.currentTick = function() { return now; }
 }
 // Apply a sort on the note log to canonicalize the order.
 function sortNoteLog(notes) {
@@ -131,8 +82,9 @@ function sortNoteLog(notes) {
     return 0;
   });
 }
-setupFakeTimer();
 setupFakeAudioContext();
+var dummy = new Instrument();
+clock.tick(1000);
 
 module("Test of the Instrument class.");
 asyncTest("Plays Stairway with an Instrument.", function() {
@@ -166,10 +118,10 @@ asyncTest("Plays Stairway with an Instrument.", function() {
     ]);
     start();
   });
+  clock.tick(10000);
 });
 
-module("Test of key signatures.");
-asyncTest("Plays Stairway with an Instrument.", function() {
+asyncTest("Test key signatures.", function() {
   // reset methodlog
   AudioContext.resetTestLog();
   var ins = new Instrument(),
@@ -199,18 +151,19 @@ asyncTest("Plays Stairway with an Instrument.", function() {
     ]);
     start();
   });
+  clock.tick(10000);
 });
 
 asyncTest("Test note timing.", function() {
   AudioContext.resetTestLog();
-  var startTick = currentTick(),
+  var startTick = clock.now,
       ins = new Instrument(),
       notelog = [];
   ins.on('noteon', function(e) {
-    notelog.push('on' + e.midi + '-' + (currentTick() - startTick));
+    notelog.push('on' + e.midi + '-' + (clock.now - startTick));
   });
   ins.on('noteoff', function(e) {
-    notelog.push('off' + e.midi + '-' + (currentTick() - startTick));
+    notelog.push('off' + e.midi + '-' + (clock.now -  startTick));
   });
   // Play a tied note, a mixed-fraction note, and a long note.
   ins.play({tempo:120},"C-C D11/2 E16 ", function() {
@@ -225,23 +178,24 @@ asyncTest("Test note timing.", function() {
     // Now test that we got all the callbacks, in order.
     deepEqual(notelog, [            // tempo: 120 = 500ms beats.
         "on60-0", "off60-969",      // Full two-beat C4.
-        "on62-969", "off62-1688",   // One-and-a-half-beat D
-        "on64-1688", "off64-9616"   // 16 beat E
+        "on62-1000", "off62-1719",   // One-and-a-half-beat D
+        "on64-1750", "off64-9719"   // 16 beat E
     ]);
     start();
   });
+  clock.tick(10000);
 });
 
 asyncTest("Test staccato timing.", function() {
   AudioContext.resetTestLog();
-  var startTick = currentTick(),
+  var startTick = clock.now,
       ins = new Instrument(),
       notelog = [];
   ins.on('noteon', function(e) {
-    notelog.push('on' + e.midi + '-' + (currentTick() - startTick));
+    notelog.push('on' + e.midi + '-' + (clock.now - startTick));
   });
   ins.on('noteoff', function(e) {
-    notelog.push('off' + e.midi + '-' + (currentTick() - startTick));
+    notelog.push('off' + e.midi + '-' + (clock.now - startTick));
   });
   // Play some staccato tones.
   ins.play({tempo:120},"(C.c).cC", function() {
@@ -258,26 +212,27 @@ asyncTest("Test staccato timing.", function() {
         "on60-0",                   // Full beat C4
         "off60-500",
         "on72-500",                 // Staccato C5.
-        "off72-516",
-        "on72-985",                 // Staccato C5.
-        "off72-1001",
-        "on60-1470",                // Full beat C4.
-        "off60-1923"
+        "off72-532",
+        "on72-1000",                // Staccato C5.
+        "off72-1032",
+        "on60-1500",                // Full beat C4.
+        "off60-1969"
     ]);
     start();
   });
+  clock.tick(5000);
 });
 
 asyncTest("Test multiple voices with a Bach Minuet.", function() {
   AudioContext.resetTestLog();
-  var startTick = currentTick(),
+  var startTick = clock.now,
       ins = new Instrument(),
       notelog = [];
   ins.on('noteon', function(e) {
-    notelog.push('on' + e.midi + '-' + (currentTick() - startTick));
+    notelog.push('on' + e.midi + '-' + (clock.now - startTick));
   });
   ins.on('noteoff', function(e) {
-    notelog.push('off' + e.midi + '-' + (currentTick() - startTick));
+    notelog.push('off' + e.midi + '-' + (clock.now - startTick));
   });
   // Play a few measures of a Bach Trio Minuet (BWV 929) with three voices.
   ins.play(
@@ -304,72 +259,73 @@ asyncTest("Test multiple voices with a Bach Minuet.", function() {
         "on70-0",
         "on74-0",
         "off55-469",
-        "on62-485",
-        "off62-954",
-        "on67-970",
-        "off67-1439",
-        "on65-1455",
-        "off65-1924",
-        "on63-1924",
-        "off63-2393",
-        "on62-2409",
-        "off62-2878",
-        "off74-2878",
-        "on60-2894",
-        "on75-2894",
-        "off60-3363",
-        "on58-3363",
-        "off58-3832",
-        "off75-3832",
-        "on60-3848",
-        "on74-3848",
-        "off60-4317",
-        "on62-4333",
-        "off62-4802",
-        "off70-4802",
-        "off74-4802",
-        "on63-4802",
-        "on69-4802",
-        "on72-4802",
-        "off63-5271",
-        "on60-5287",
-        "off60-5756",
-        "on62-5772",
-        "off72-6241",
-        "on70-6241",
-        "off62-6710",
-        "off69-6710",
-        "off70-6710",
-        "on50-6726",
-        "on67-6726",
-        "on72-6726",
-        "off72-7195",
-        "on69-7211",
-        "off50-7680",
-        "off67-7680",
-        "off69-7680",
-        "on62-7696",
-        "on66-7696",
-        "on74-7696",
-        "off62-8649",
-        "off66-8649",
-        "off74-8649"
+        "on62-500",
+        "off62-969",
+        "on67-1000",
+        "off67-1469",
+        "on65-1500",
+        "off65-1969",
+        "on63-2000",
+        "off63-2469",
+        "on62-2500",
+        "off62-2969",
+        "off74-2969",
+        "on60-3000",
+        "on75-3000",
+        "off60-3469",
+        "on58-3500",
+        "off58-3969",
+        "off75-3969",
+        "on60-4000",
+        "on74-4000",
+        "off60-4469",
+        "on62-4500",
+        "off62-4969",
+        "off70-4969",
+        "off74-4969",
+        "on63-5000",
+        "on69-5000",
+        "on72-5000",
+        "off63-5469",
+        "on60-5500",
+        "off60-5969",
+        "on62-6000",
+        "off72-6469",
+        "on70-6500",
+        "off62-6969",
+        "off69-6969",
+        "off70-6969",
+        "on50-7000",
+        "on67-7000",
+        "on72-7000",
+        "off72-7469",
+        "on69-7500",
+        "off50-7969",
+        "off67-7969",
+        "off69-7969",
+        "on62-8000",
+        "on66-8000",
+        "on74-8000",
+        "off62-8969",
+        "off66-8969",
+        "off74-8969"
     ]);
     start();
   });
+  clock.tick(20000);
 });
 
 asyncTest("Test realtime Piano.", function() {
   AudioContext.resetTestLog();
-  var startTick = currentTick(),
+  var startTick = clock.now,
       ins = new Instrument(),
       notelog = [];
   // Track events
   ins.on('noteon', function(e) {
-    notelog.push('on' + e.midi + '-' + (currentTick() - startTick));
+    notelog.push('on' + e.midi + '-' + (clock.now - startTick));
   });
   ins.on('noteoff', function(e) {
-    notelog.push('off' + e.midi + '-' + (currentTick() - startTick));
+    notelog.push('off' + e.midi + '-' + (clock.now - startTick));
   });
   ins.tone('C');
   setTimeout(function() {
@@ -390,7 +346,7 @@ asyncTest("Test realtime Piano.", function() {
               "on60-1000",   // and then signal this on second.
               "off67-1500",
               "off60-2000",
-              "off64-10109"  // Release the E after 10 seconds.
+              "off64-10500"  // Release the E after 10 seconds.
             ]);
             start();
           }, 10000);
@@ -398,19 +354,20 @@ asyncTest("Test realtime Piano.", function() {
       }, 500);
     }, 500);
   }, 500);
+  clock.tick(20000);
 });
 
 
 asyncTest("Test full ABC notation with a Beethoven Sonata.", function() {
   AudioContext.resetTestLog();
-  var startTick = currentTick(),
+  var startTick = clock.now,
       ins = new Instrument(),
       notelog = [];
   ins.on('noteon', function(e) {
-    notelog.push('on' + e.midi + '-' + (currentTick() - startTick));
+    notelog.push('on' + e.midi + '-' + (clock.now - startTick));
   });
   ins.on('noteoff', function(e) {
-    notelog.push('off' + e.midi + '-' + (currentTick() - startTick));
+    notelog.push('off' + e.midi + '-' + (clock.now - startTick));
   });
   // Play a couple measures of a Beethoven piano sonata.
   // The following song has lots of ABC notation including !markings!
@@ -443,101 +400,101 @@ asyncTest("Test full ABC notation with a Beethoven Sonata.", function() {
         "on51-0",
         "on55-0",
         "on60-0",
-        "off36-2641",
-        "off39-2641",
-        "off43-2641",
-        "off48-2641",
-        "off51-2641",
-        "off55-2641",
-        "off60-2641",
-        "on51-2641",
-        "on55-2641",
-        "on60-2641",
-        "off51-2860",
-        "off55-2860",
-        "off60-2860",
-        "on50-2891",
-        "on55-2891",
-        "on59-2891",
-        "on62-2891",
-        "off50-3610",
-        "off55-3610",
-        "off59-3610",
-        "off62-3610",
-        "on48-3610",
-        "on55-3610",
-        "on60-3610",
-        "on63-3610",
-        "off48-3829",
-        "off55-3829",
-        "off60-3829",
-        "off63-3829",
-        "on54-3845",
-        "on57-3845",
-        "on60-3845",
-        "on63-3845",
-        "off54-5805",
-        "off57-5805",
-        "off60-5805",
-        "off63-5805",
-        "on55-5805",
-        "on59-5805",
-        "on62-5805",
-        "off55-6743",
-        "off59-6743",
-        "off62-6743",
-        "on44-7227",
-        "off44-7680",
-        "on56-7696",
-        "on59-7696",
-        "on62-7696",
-        "on65-7696",
-        "off56-10358",
-        "off59-10358",
-        "off62-10358",
-        "off65-10358",
-        "on56-10358",
-        "on59-10358",
-        "on62-10358",
-        "on65-10358",
-        "off56-10546",
-        "off59-10546",
-        "off62-10546",
-        "off65-10546",
-        "on55-10562",
-        "on59-10562",
-        "on62-10562",
-        "on67-10562",
-        "off55-11281",
-        "off59-11281",
-        "off62-11281",
-        "off67-11281",
-        "on53-11281",
-        "on59-11281",
-        "on62-11281",
-        "on68-11281",
-        "off53-11500",
-        "off59-11500",
-        "off62-11500",
-        "off68-11500",
-        "on51-11531",
-        "on59-11531",
-        "on62-11531",
-        "on68-11531",
-        "off59-13491",
-        "off62-13491",
-        "off68-13491",
-        "on60-13491",
-        "on63-13491",
-        "on67-13491",
-        "off51-14413",
-        "off60-14413",
-        "off63-14413",
-        "off67-14413"
+        "off36-2719",
+        "off39-2719",
+        "off43-2719",
+        "off48-2719",
+        "off51-2719",
+        "off55-2719",
+        "off60-2719",
+        "on51-2750",
+        "on55-2750",
+        "on60-2750",
+        "off51-2969",
+        "off55-2969",
+        "off60-2969",
+        "on50-3000",
+        "on55-3000",
+        "on59-3000",
+        "on62-3000",
+        "off50-3719",
+        "off55-3719",
+        "off59-3719",
+        "off62-3719",
+        "on48-3750",
+        "on55-3750",
+        "on60-3750",
+        "on63-3750",
+        "off48-3969",
+        "off55-3969",
+        "off60-3969",
+        "off63-3969",
+        "on54-4000",
+        "on57-4000",
+        "on60-4000",
+        "on63-4000",
+        "off54-6000",
+        "off57-6000",
+        "off60-6000",
+        "off63-6000",
+        "on55-6000",
+        "on59-6000",
+        "on62-6000",
+        "off55-6969",
+        "off59-6969",
+        "off62-6969",
+        "on44-7500",
+        "off44-7969",
+        "on56-8000",
+        "on59-8000",
+        "on62-8000",
+        "on65-8000",
+        "off56-10719",
+        "off59-10719",
+        "off62-10719",
+        "off65-10719",
+        "on56-10750",
+        "on59-10750",
+        "on62-10750",
+        "on65-10750",
+        "off56-10969",
+        "off59-10969",
+        "off62-10969",
+        "off65-10969",
+        "on55-11000",
+        "on59-11000",
+        "on62-11000",
+        "on67-11000",
+        "off55-11719",
+        "off59-11719",
+        "off62-11719",
+        "off67-11719",
+        "on53-11750",
+        "on59-11750",
+        "on62-11750",
+        "on68-11750",
+        "off53-11969",
+        "off59-11969",
+        "off62-11969",
+        "off68-11969",
+        "on51-12000",
+        "on59-12000",
+        "on62-12000",
+        "on68-12000",
+        "off59-14000",
+        "off62-14000",
+        "off68-14000",
+        "on60-14000",
+        "on63-14000",
+        "on67-14000",
+        "off51-14969",
+        "off60-14969",
+        "off63-14969",
+        "off67-14969"
     ]);
     start();
   });
+  clock.tick(20000);
 });
-
 </script>
 
