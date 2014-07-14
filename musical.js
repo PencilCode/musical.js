@@ -389,10 +389,14 @@ var Instrument = (function() {
       this.silence();
       return;
     }
-    var now = this._atop.ac.currentTime, callbacks = [],
+    // The shortest time we can delay is 1 / 1000 secs, so if an event
+    // is within the next 0.5 ms, now is the closest moment, and we go
+    // ahead and process it.
+    var instant = this._atop.ac.currentTime + (1 / 2000),
+        callbacks = [],
         j, work, when, freq, record, conflict, save, cb;
     // Schedule a batch of notes
-    if (this._minQueueTime - now <= Instrument.bufferSecs) {
+    if (this._minQueueTime - instant <= Instrument.bufferSecs) {
       if (this._unsortedQueue) {
         this._queue.sort(function(a, b) {
           if (a.time != b.time) { return a.time - b.time; }
@@ -402,7 +406,7 @@ var Instrument = (function() {
         this._unsortedQueue = false;
       }
       for (j = 0; j < this._queue.length; ++j) {
-        if (this._queue[j].time - now > Instrument.bufferSecs) { break; }
+        if (this._queue[j].time - instant > Instrument.bufferSecs) { break; }
       }
       if (j > 0) {
         work = this._queue.splice(0, j);
@@ -416,7 +420,7 @@ var Instrument = (function() {
     // Disconnect notes from the cleanup set.
     for (j = 0; j < this._cleanupSet.length; ++j) {
       record = this._cleanupSet[j];
-      if (record.cleanuptime < now) {
+      if (record.cleanuptime < instant) {
         if (record.gainNode) {
           // This explicit disconnect is needed or else Chrome's WebAudio
           // starts getting overloaded after a couple thousand notes.
@@ -431,7 +435,7 @@ var Instrument = (function() {
     for (freq in this._finishSet) {
       record = this._finishSet[freq];
       when = record.time + record.duration;
-      if (when <= now) {
+      if (when <= instant) {
         callbacks.push({
           order: [when, 0],
           f: this._trigger, t: this, a: ['noteoff', record]});
@@ -445,7 +449,7 @@ var Instrument = (function() {
     for (j = 0; j < this._callbackSet.length; ++j) {
       cb = this._callbackSet[j];
       when = cb.time;
-      if (when <= now) {
+      if (when <= instant) {
         callbacks.push({
           order: [when, 1],
           f: cb.callback, t: null, a: []});
@@ -455,7 +459,7 @@ var Instrument = (function() {
     }
     // Notify about any notes starting.
     for (j = 0; j < this._startSet.length; ++j) {
-      if (this._startSet[j].time <= now) {
+      if (this._startSet[j].time <= instant) {
         save = record = this._startSet[j];
         freq = record.frequency;
         conflict = null;
@@ -551,7 +555,7 @@ var Instrument = (function() {
     earliest = Math.min(
        earliest, this._minQueueTime - Instrument.dequeueTime);
 
-    delay = Math.max(0, earliest - this._atop.ac.currentTime);
+    delay = Math.max(0.001, earliest - this._atop.ac.currentTime);
 
     // If there are no future events, then we do not need a timer.
     if (isNaN(delay) || delay == Infinity) { return; }

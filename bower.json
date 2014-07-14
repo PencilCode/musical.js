@@ -4,6 +4,7 @@
   "description": "An ABC music sequencer and synthesizer for WebAudio.",
   "devDependencies": {
     "qunit": "latest",
-    "requirejs": "latest"
+    "requirejs": "latest",
+    "sinonjs-built": "~1.9.1"
   }
 }
