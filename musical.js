@@ -742,7 +742,7 @@ var Instrument = (function() {
               delay,                       // starting at the proper time
               timbre,                      // with the selected timbre
               note                         // the origin object for visual feedback
-              );                     
+              );
           }
           delay += stem.time * beatsecs;   // Advance the sequenced time.
         }
