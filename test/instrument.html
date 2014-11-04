@@ -333,11 +333,11 @@ asyncTest("Passing an origin object to callbacks.", function() {
   // play the game
   //function(pitch, velocity, duration, delay, timbre, origin) {
 
-  ins.tone('C', 1   , 0.5, null, null, 'origin_1');
-  ins.tone('D', 1,    0.5, null, null, 'origin_2');
-  ins.tone('D', 100,    1,  0.5, null, 'origin_3');
-  ins.tone('D', 100,    1,  0.6, null, 'origin_4');
-  ins.tone('D', 100,    1,    2, null, 'origin_5');
+  ins.tone('C', 0.5,   1, null, null, 'origin_1');
+  ins.tone('D', 0.5,   1, null, null, 'origin_2');
+  ins.tone('D', 1,   100,  0.5, null, 'origin_3');
+  ins.tone('D', 1,   100,  0.6, null, 'origin_4');
+  ins.tone('D', 1,   100,    2, null, 'origin_5');
 
   setTimeout(function() {
     deepEqual(notelog, [

@@ -566,7 +566,7 @@ var Instrument = (function() {
 
   // The low-level tone function.
   Instrument.prototype.tone =
-  function(pitch, velocity, duration, delay, timbre, origin) {
+  function(pitch, duration, velocity, delay, timbre, origin) {
     // If audio is not present, this is a no-op.
     if (!this._atop) { return; }
 
@@ -737,8 +737,8 @@ var Instrument = (function() {
             // This is innsermost part of the inner loop!
             this.tone(                     // Play the tone:
               note.pitch,                  // at the given pitch
-              v,                           // with the given volume
               secs,                        // for the given duration
+              v,                           // with the given volume
               delay,                       // starting at the proper time
               timbre,                      // with the selected timbre
               note                         // the origin object for visual feedback
