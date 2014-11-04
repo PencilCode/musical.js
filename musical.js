@@ -102,7 +102,7 @@ var Instrument = (function() {
 
   Instrument.dequeueTime = 0.5;  // Seconds before an event to reexamine queue.
   Instrument.bufferSecs = 2;     // Seconds ahead to put notes in WebAudio.
-  Instrument.toneLength = 10;    // Default duration of a tone.
+  Instrument.toneLength = 1;     // Default duration of a tone.
   Instrument.cleanupDelay = 0.1; // Silent time before disconnecting nodes.
 
   // Sets the default timbre for the instrument.  See defaultTimbre.

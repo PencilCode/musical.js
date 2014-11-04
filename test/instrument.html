@@ -370,12 +370,12 @@ asyncTest("Test realtime Piano.", function() {
   ins.on('noteoff', function(e) {
     notelog.push('off' + e.midi + '-' + (clock.now - startTick));
   });
-  ins.tone('C');
+  ins.tone('C', 10);
   setTimeout(function() {
-    ins.tone('G');
-    ins.tone('E');
+    ins.tone('G', 10);
+    ins.tone('E', 10);
     setTimeout(function() {
-      ins.tone('C');
+      ins.tone('C', 10);
       setTimeout(function() {
         ins.tone('G', 0);
         setTimeout(function() {
