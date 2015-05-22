@@ -1677,9 +1677,9 @@ function makeWavetable(ac) {
       // TODO: this approach attenuates low notes too much -
       // this should be fixed.
       defs: { wave: 'piano', gain: 0.5,
-              attack: 0.002, decay: 0.4, sustain: 0.005, release: 0.1,
+              attack: 0.002, decay: 0.25, sustain: 0.03, release: 0.1,
               decayfollow: 0.7,
-              cutoff: 800, cutfollow: 0.1, resonance: 1, detune: 1.001 }
+              cutoff: 800, cutfollow: 0.1, resonance: 1, detune: 0.9994 }
     }
   });
 }

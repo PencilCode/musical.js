@@ -1,0 +1,74 @@
+<html>
+<head>
+<script src="../../musical.js"></script> <!-- defines Instrument class -->
+</head>
+
+<body style="font-family:Arial;padding:36px 20%;">
+<h2>Enter your own ABC song. <span></span></h2>
+
+<p>This web page is a demonstration of the use of
+<a href="https://github.com/PencilCode/musical.js">musical.js</a>
+to play ABC notation interactively.
+
+<textarea id="song" style="width:100%;height:60px">
+[CEG]4
+</textarea>
+
+<input type="button" value="Play" id="play">
+
+<pre style="background:skyblue"></pre>
+
+<script>
+// Select a timbre that sounds like an electric piano.
+var inst = new Instrument('piano');
+
+document.getElementById('play').addEventListener('click', function() {
+  var song = document.getElementById('song').value;
+  inst.silence();
+
+  // Play a song from a string in ABC notation.
+  inst.play(
+    // Here we pass a song (to start at once).
+    song,
+    // The optional last argument is a callback when the song is done.
+    function() {
+      document.getElementsByTagName('span')[0].innerHTML = '(Done playing.)';
+    }
+  );
+});
+
+var pressed = {};
+// Optional, just for fun: listen to every note played.
+inst.on('noteon', function(e) {
+  pressed[e.midi] = true;
+  drawMidiNumbers();
+});
+// And listen to every note released.
+inst.on('noteoff', function(e) {
+  delete pressed[e.midi];
+  drawMidiNumbers();
+});
+function drawMidiNumbers() {
+  var k = [];
+  for (var midi in pressed) { k.push(midi); }
+  document.getElementsByTagName('span')[0].innerHTML =
+    '(midi #' + k.join(',') +')';
+}
+
+
+</script>
+
+<p>Minified, musical.js is about 17K, and it has no dependencies.
+It can also be used as an AMD or node.js modele.
+
+<script>
+// Also, show this document's source code.
+var pre = document.getElementsByTagName('pre')[0];
+pre.innerText = document.body.parentElement.outerHTML;
+pre.innerHTML = pre.innerHTML.replace(
+    /(new Instrument|\/musical\.js|\.play)(?![|\)])/gi,
+    '<b style="background:yellow">$1</b>');
+</script>
+
+</body>
+</html>
