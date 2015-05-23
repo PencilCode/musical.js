@@ -223,6 +223,37 @@ asyncTest("Test staccato timing.", function() {
   clock.tick(5000);
 });
 
+asyncTest("Test inline key signature change.", function() {
+  AudioContext.resetTestLog();
+  var startTick = clock.now,
+      ins = new Instrument(),
+      notelog = [];
+  ins.on('noteon', function(e) {
+    notelog.push('on' + e.midi + '-' + (clock.now - startTick));
+  });
+  ins.on('noteoff', function(e) {
+    notelog.push('off' + e.midi + '-' + (clock.now -  startTick));
+  });
+  // Play two notes with a key-signature change
+  ins.play({tempo:120},"C[K:C#]C", function() {
+    ok(AudioContext.methodlog.indexOf('gain1.connect') >= 0);
+    ok(AudioContext.methodlog.indexOf('gain1.connect') < 2);
+    // Two notes should have sounded.
+    ok(AudioContext.methodlog.indexOf('osc2.connect') > 0);
+    ok(AudioContext.methodlog.indexOf('osc2.start') > 0);
+    ok(AudioContext.methodlog.indexOf('osc2.stop') > 0);
+    // But not a note beyond that.
+    ok(AudioContext.methodlog.indexOf('osc3.start') < 0);
+    // Now test that we got all the callbacks, in order.
+    deepEqual(notelog, [            // tempo: 120 = 500ms beats.
+        "on60-0", "off60-469",      // One-beat C4.
+        "on61-500", "off61-969"     // One-beat C4 sharp.
+    ]);
+    start();
+  });
+  clock.tick(10000);
+});
+
 asyncTest("Test multiple voices with a Bach Minuet.", function() {
   AudioContext.resetTestLog();
   var startTick = clock.now,

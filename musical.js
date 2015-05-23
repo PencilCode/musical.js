@@ -778,13 +778,14 @@ var Instrument = (function() {
   // practical, working on content as it appears on the web, and only
   // using the written standard as a guideline.
   var ABCheader = /^([A-Za-z]):\s*(.*)$/;
+  var ABCtoken = /(?:\[[A-Za-z]:[^\]]*\])|\s+|%[^\n]*|![^\s!:|\[\]]*!|\+[^+|!]*\+|[_<>@^]?"[^"]*"|\[|\]|>+|<+|(?:(?:\^+|_+|=|)[A-Ga-g](?:,+|'+|))|\(\d+(?::\d+){0,2}|\d*\/\d+|\d+\/?|\/+|[xzXZ]|\[?\|\]?|:?\|:?|::|./g;
   function parseABCFile(str) {
     var lines = str.split('\n'),
         result = {
           voice: {}
         },
         context = result, timbre,
-        j, k, header, stems, key = {}, accent = {}, voiceid, out;
+        j, k, header, stems, key = {}, accent = { slurred: 0 }, voiceid, out;
     // Shifts context to a voice with the given id given.  If no id
     // given, then just sticks with the current voice.  If the current
     // voice is unnamed and empty, renames the current voice.
@@ -812,66 +813,184 @@ var Instrument = (function() {
         return '';
       }
     }
+    function handleInformation(field, value) {
+      // The following headers are recognized and processed.
+      switch(field) {
+        case 'V':
+          // A V: header switches voices if in the body.
+          // If in the header, then it is just advisory.
+          if (context !== result) {
+            startVoiceContext(value.split(' ')[0]);
+          }
+          break;
+        case 'M':
+          parseMeter(value, context);
+          break;
+        case 'L':
+          parseUnitNote(value, context);
+          break;
+        case 'Q':
+          parseTempo(value, context);
+          break;
+      }
+      // All headers (including unrecognized ones) are
+      // just accumulated as properties. Repeated header
+      // lines are accumulated as multiline properties.
+      if (context.hasOwnProperty(field)) {
+        context[field] += '\n' + value;
+      } else {
+        context[field] = value;
+      }
+      // The K header is special: it should be the last one
+      // before the voices and notes begin.
+      if (field == 'K') {
+        key = keysig(value);
+        if (context === result) {
+          startVoiceContext(firstVoiceName());
+        }
+      }
+    }
+    // Parses a single line of ABC notes (i.e., not a header line).
+    //
+    // We process an ABC song stream by dividing it into tokens, each of
+    // which is a pitch, duration, or special decoration symbol; then
+    // we process each decoration individually, and we process each
+    // stem as a group using parseStem.
+    // The structure of a single ABC note is something like this:
+    //
+    // NOTE -> STACCATO? PITCH DURATION? TIE?
+    //
+    // I.e., it always has a pitch, and it is prefixed by some optional
+    // decorations such as a (.) staccato marking, and it is suffixed by
+    // an optional duration and an optional tie (-) marking.
+    //
+    // A stem is either a note or a bracketed series of notes, followed
+    // by duration and tie.
+    //
+    // STEM -> NOTE   OR    '[' NOTE * ']' DURAITON? TIE?
+    //
+    // Then a song is just a sequence of stems interleaved with other
+    // decorations such as dynamics markings and measure delimiters.
+    function parseABCNotes(str) {
+      var tokens = str.match(ABCtoken), parsed = null,
+          index = 0, dotted = 0, beatlet = null, t;
+      if (!tokens) {
+        return null;
+      }
+      while (index < tokens.length) {
+        // Ignore %comments and !markings!
+        if (/^[\s%]/.test(tokens[index])) { index++; continue; }
+        // Handle inline [X:...] information fields
+        if (/^\[[A-Za-z]:[^\]]*\]$/.test(tokens[index])) {
+          handleInformation(
+            tokens[index].substring(1, 2),
+            tokens[index].substring(3, tokens[index].length - 1).trim()
+          );
+          index++;
+          continue;
+        }
+        // Handled dotted notation abbreviations.
+        if (/</.test(tokens[index])) {
+          dotted = -tokens[index++].length;
+          continue;
+        }
+        if (/>/.test(tokens[index])) {
+          dotted = tokens[index++].length;
+          continue;
+        }
+        if (/^\(\d+(?::\d+)*/.test(tokens[index])) {
+          beatlet = parseBeatlet(tokens[index++]);
+          continue;
+        }
+        if (/^[!+].*[!+]$/.test(tokens[index])) {
+          parseDecoration(tokens[index++], accent);
+          continue;
+        }
+        if (/^.?".*"$/.test(tokens[index])) {
+          // Ignore double-quoted tokens (chords and general text annotations).
+          index++;
+          continue;
+        }
+        if (/^[()]$/.test(tokens[index])) {
+          if (tokens[index++] == '(') {
+            accent.slurred += 1;
+          } else {
+            accent.slurred -= 1;
+            if (accent.slurred <= 0) {
+              accent.slurred = 0;
+              if (context.stems && context.stems.length >= 1) {
+                // The last notes in a slur are not slurred.
+                slurStem(context.stems[context.stems.length - 1], false);
+              }
+            }
+          }
+          continue;
+        }
+        // Handle measure markings by clearing accidentals.
+        if (/\|/.test(tokens[index])) {
+          for (t in accent) {
+            if (t.length == 1) {
+              // Single-letter accent properties are note accidentals.
+              delete accent[t];
+            }
+          }
+          index++;
+          continue;
+        }
+        parsed = parseStem(tokens, index, key, accent);
+        // Skip unparsable bits
+        if (parsed === null) {
+          index++;
+          continue;
+        }
+        // Process a parsed stem.
+        if (beatlet) {
+          scaleStem(parsed.stem, beatlet.time);
+          beatlet.count -= 1;
+          if (!beatlet.count) {
+            beatlet = null;
+          }
+        }
+        // If syncopated with > or < notation, shift part of a beat
+        // between this stem and the previous one.
+        if (dotted && context.stems && context.stems.length) {
+          if (dotted > 0) {
+            t = (1 - Math.pow(0.5, dotted)) * parsed.stem.time;
+          } else {
+            t = (Math.pow(0.5, -dotted) - 1) *
+                context.stems[context.stems.length - 1].time;
+          }
+          syncopateStem(context.stems[context.stems.length - 1], t);
+          syncopateStem(parsed.stem, -t);
+        }
+        dotted = 0;
+        // Slur all the notes contained within a strem.
+        if (accent.slurred) {
+          slurStem(parsed.stem, true);
+        }
+        // Start a default voice if we're not in a voice yet.
+        if (context === result) {
+          startVoiceContext(firstVoiceName());
+        }
+        if (!('stems' in context)) { context.stems = []; }
+        // Add the stem to the sequence of stems for this voice.
+        context.stems.push(parsed.stem);
+        // Advance the parsing index since a stem is multiple tokens.
+        index = parsed.index;
+      }
+    }
     // ABC files are parsed one line at a time.
     for (j = 0; j < lines.length; ++j) {
       // First, check to see if the line is a header line.
       header = ABCheader.exec(lines[j]);
       if (header) {
-        // The following headers are recognized and processed.
-        switch(header[1]) {
-          case 'V':
-            // A V: header switches voices if in the body.
-            // If in the header, then it is just advisory.
-            if (context !== result) {
-              startVoiceContext(header[2].split(' ')[0]);
-            }
-            break;
-          case 'M':
-            parseMeter(header[2], context);
-            break;
-          case 'L':
-            parseUnitNote(header[2], context);
-            break;
-          case 'Q':
-            parseTempo(header[2], context);
-            break;
-        }
-        // All headers (including unrecognized ones) are
-        // just accumulated as properties. Repeated header
-        // lines are accumulated as multiline properties.
-        if (context.hasOwnProperty(header[1])) {
-          context[header[1]] += '\n' + header[2];
-        } else {
-          context[header[1]] = header[2];
-        }
-        // The K header is special: it should be the last one
-        // before the voices and notes begin.
-        if (header[1] == 'K' && context === result) {
-          key = keysig(header[2]);
-          startVoiceContext(firstVoiceName());
-        }
+        handleInformation(header[1], header[2]);
       } else if (/^\s*(?:%.*)?$/.test(lines[j])) {
         // Skip blank and comment lines.
         continue;
       } else {
-        // A non-blank non-header line should have notes.
-        voiceid = peekABCVoice(lines[j]);
-        if (voiceid) {
-          // If it declares a voice id, respect it.
-          startVoiceContext(voiceid);
-        } else {
-          // Otherwise, start a default voice.
-          if (context === result) {
-            startVoiceContext(firstVoiceName());
-          }
-        }
         // Parse the notes.
-        stems = parseABCNotes(lines[j], key, accent);
-        if (stems && stems.length) {
-          // Push the line of stems into the voice.
-          if (!('stems' in context)) { context.stems = []; }
-          context.stems.push.apply(context.stems, stems);
-        }
+        parseABCNotes(lines[j]);
       }
     }
     var infer = ['unitnote', 'unitbeat', 'tempo'];
@@ -1037,133 +1156,6 @@ var Instrument = (function() {
           result[note] = extras[j].substr(0, extras[j].length - 1);
         }
       }
-    }
-    return result;
-  }
-  // Peeks and looks for a prefix of the form [V:voiceid].
-  function peekABCVoice(line) {
-    var match = /^\[V:([^\]\s]*)\]/.exec(line);
-    if (!match) return null;
-    return match[1];
-  }
-  // Parses a single line of ABC notes (i.e., not a header line).
-  //
-  // We process an ABC song stream by dividing it into tokens, each of
-  // which is a pitch, duration, or special decoration symbol; then
-  // we process each decoration individually, and we process each
-  // stem as a group using parseStem.
-  // The structure of a single ABC note is something like this:
-  //
-  // NOTE -> STACCATO? PITCH DURATION? TIE?
-  //
-  // I.e., it always has a pitch, and it is prefixed by some optional
-  // decorations such as a (.) staccato marking, and it is suffixed by
-  // an optional duration and an optional tie (-) marking.
-  //
-  // A stem is either a note or a bracketed series of notes, followed
-  // by duration and tie.
-  //
-  // STEM -> NOTE   OR    '[' NOTE * ']' DURAITON? TIE?
-  //
-  // Then a song is just a sequence of stems interleaved with other
-  // decorations such as dynamics markings and measure delimiters.
-  var ABCtoken = /(?:^\[V:[^\]\s]*\])|\s+|%[^\n]*|![^\s!:|\[\]]*!|\+[^+|!]*\+|[_<>@^]?"[^"]*"|\[|\]|>+|<+|(?:(?:\^+|_+|=|)[A-Ga-g](?:,+|'+|))|\(\d+(?::\d+){0,2}|\d*\/\d+|\d+\/?|\/+|[xzXZ]|\[?\|\]?|:?\|:?|::|./g;
-  function parseABCNotes(str, key, accent) {
-    var tokens = str.match(ABCtoken), result = [], parsed = null,
-        index = 0, dotted = 0, beatlet = null, t;
-    if (!tokens) {
-      return null;
-    }
-    while (index < tokens.length) {
-      // Ignore %comments and !markings!
-      if (/^[\s%]/.test(tokens[index])) { index++; continue; }
-      if (/^\[V:\S*\]$/.test(tokens[index])) {
-        // Voice id from [V:id] is handled in peekABCVoice.
-        index++;
-        continue;
-      }
-      // Handled dotted notation abbreviations.
-      if (/</.test(tokens[index])) {
-        dotted = -tokens[index++].length;
-        continue;
-      }
-      if (/>/.test(tokens[index])) {
-        dotted = tokens[index++].length;
-        continue;
-      }
-      if (/^\(\d+(?::\d+)*/.test(tokens[index])) {
-        beatlet = parseBeatlet(tokens[index++]);
-        continue;
-      }
-      if (/^[!+].*[!+]$/.test(tokens[index])) {
-        parseDecoration(tokens[index++], accent);
-        continue;
-      }
-      if (/^.?".*"$/.test(tokens[index])) {
-        // Ignore double-quoted tokens (chords and general text annotations).
-        index++;
-        continue;
-      }
-      if (/^[()]$/.test(tokens[index])) {
-        if (tokens[index++] == '(') {
-          accent.slurred += 1;
-        } else {
-          accent.slurred -= 1;
-          if (accent.slurred <= 0) {
-            accent.slurred = 0;
-            if (result.length >= 1) {
-              // The last notes in a slur are not slurred.
-              slurStem(result[result.length - 1], false);
-            }
-          }
-        }
-        continue;
-      }
-      // Handle measure markings by clearing accidentals.
-      if (/\|/.test(tokens[index])) {
-        for (t in accent) {
-          if (t.length == 1) {
-            // Single-letter accent properties are note accidentals.
-            delete accent[t];
-          }
-        }
-        index++;
-        continue;
-      }
-      parsed = parseStem(tokens, index, key, accent);
-      // Skip unparsable bits
-      if (parsed === null) {
-        index++;
-        continue;
-      }
-      // Process a parsed stem.
-      if (beatlet) {
-        scaleStem(parsed.stem, beatlet.time);
-        beatlet.count -= 1;
-        if (!beatlet.count) {
-          beatlet = null;
-        }
-      }
-      // If syncopated with > or < notation, shift part of a beat
-      // between this stem and the previous one.
-      if (dotted && result.length) {
-        if (dotted > 0) {
-          t = (1 - Math.pow(0.5, dotted)) * parsed.stem.time;
-        } else {
-          t = (Math.pow(0.5, -dotted) - 1) * result[result.length - 1].time;
-        }
-        syncopateStem(result[result.length - 1], t);
-        syncopateStem(parsed.stem, -t);
-      }
-      dotted = 0;
-      // Slur all the notes contained within a strem.
-      if (accent.slurred) {
-        slurStem(parsed.stem, true);
-      }
-      // Add the stem to the sequence of stems for this voice.
-      result.push(parsed.stem);
-      // Advance the parsing index since a stem is multiple tokens.
-      index = parsed.index;
     }
     return result;
   }
