@@ -61,6 +61,48 @@ function audioCurrentStartTime() {
   return atop.currentStart;
 }
 
+// Converts a midi note number to a frequency in Hz.
+function midiToFrequency(midi) {
+  return 440 * Math.pow(2, (midi - 69) / 12);
+}
+// Some constants.
+var noteNum =
+    {C:0,D:2,E:4,F:5,G:7,A:9,B:11,c:12,d:14,e:16,f:17,g:19,a:21,b:23};
+var accSym =
+    { '^':1, '': 0, '=':0, '_':-1 };
+var noteName =
+    ['C', '^C', 'D', '_E', 'E', 'F', '^F', 'G', '_A', 'A', '_B', 'B',
+     'c', '^c', 'd', '_e', 'e', 'f', '^f', 'g', '_a', 'a', '_b', 'b'];
+// Converts a frequency in Hz to the closest midi number.
+function frequencyToMidi(freq) {
+  return Math.round(69 + Math.log(freq / 440) * 12 / Math.LN2);
+}
+// Converts an ABC pitch (such as "^G,,") to a midi note number.
+function pitchToMidi(pitch) {
+  var m = /^(\^+|_+|=|)([A-Ga-g])([,']*)$/.exec(pitch);
+  if (!m) { return null; }
+  var octave = m[3].replace(/,/g, '').length - m[3].replace(/'/g, '').length;
+  var semitone =
+      noteNum[m[2]] + accSym[m[1].charAt(0)] * m[1].length + 12 * octave;
+  return semitone + 60; // 60 = midi code middle "C".
+}
+// Converts a midi number to an ABC notation pitch.
+function midiToPitch(midi) {
+  var index = ((midi - 72) % 12);
+  if (midi > 60 || index != 0) { index += 12; }
+  var octaves = Math.round((midi - index - 60) / 12),
+      result = noteName[index];
+  while (octaves != 0) {
+    result += octaves > 0 ? "'" : ",";
+    octaves += octaves > 0 ? -1 : 1;
+  }
+  return result;
+}
+// Converts an ABC pitch to a frequency in Hz.
+function pitchToFrequency(pitch) {
+  return midiToFrequency(pitchToMidi(pitch));
+}
+
 // All further details of audio handling are encapsulated in the Instrument
 // class, which knows how to synthesize a basic timbre; how to play and
 // schedule a tone; and how to parse and sequence a song written in ABC
@@ -757,269 +799,402 @@ var Instrument = (function() {
     }
   };
 
-  // Parses an ABC file to an object with the following structure:
-  // {
-  //   X: value from the X: lines in header (\n separated for multiple values)
-  //   V: value from the V:myname lines that appear before K:
-  //   (etc): for all the one-letter header-names.
-  //   K: value from the K: lines in header.
-  //   tempo: Q: line parsed as beatsecs
-  //   timbre: ... I:timbre line as parsed by makeTimbre
-  //   voice: {
-  //     myname: { // voice with id "myname"
-  //       V: value from the V:myname lines (from the body)
-  //       stems: [...] as parsed by parseABCstems
-  //    }
-  //  }
-  // }
-  // ABC files are idiosyncratic to parse: the written specifications
-  // do not necessarily reflect the defacto standard implemented by
-  // ABC content on the web.  This implementation is designed to be
-  // practical, working on content as it appears on the web, and only
-  // using the written standard as a guideline.
-  var ABCheader = /^([A-Za-z]):\s*(.*)$/;
-  var ABCtoken = /(?:\[[A-Za-z]:[^\]]*\])|\s+|%[^\n]*|![^\s!:|\[\]]*!|\+[^+|!]*\+|[_<>@^]?"[^"]*"|\[|\]|>+|<+|(?:(?:\^+|_+|=|)[A-Ga-g](?:,+|'+|))|\(\d+(?::\d+){0,2}|\d*\/\d+|\d+\/?|\/+|[xzXZ]|\[?\|\]?|:?\|:?|::|./g;
-  function parseABCFile(str) {
-    var lines = str.split('\n'),
-        result = {
-          voice: {}
-        },
-        context = result, timbre,
-        j, k, header, stems, key = {}, accent = { slurred: 0 }, voiceid, out;
-    // Shifts context to a voice with the given id given.  If no id
-    // given, then just sticks with the current voice.  If the current
-    // voice is unnamed and empty, renames the current voice.
-    function startVoiceContext(id) {
-      id = id || '';
-      if (!id && context !== result) {
-        return;
-      }
-      if (result.voice.hasOwnProperty(id)) {
-        // Resume a named voice.
-        context = result.voice[id];
-        accent = context.accent;
-      } else {
-        // Start a new voice.
-        context = { id: id, accent: { slurred: 0 } };
-        result.voice[id] = context;
-        accent = context.accent;
-      }
+
+  // The default sound is a square wave with a pretty quick decay to zero.
+  var defaultTimbre = Instrument.defaultTimbre = {
+    wave: 'square',   // Oscillator type.
+    gain: 0.1,        // Overall gain at maximum attack.
+    attack: 0.002,    // Attack time at the beginning of a tone.
+    decay: 0.4,       // Rate of exponential decay after attack.
+    decayfollow: 0,   // Amount of decay shortening for higher notes.
+    sustain: 0,       // Portion of gain to sustain indefinitely.
+    release: 0.1,     // Release time after a tone is done.
+    cutoff: 0,        // Low-pass filter cutoff frequency.
+    cutfollow: 0,     // Cutoff adjustment, a multiple of oscillator freq.
+    resonance: 0,     // Low-pass filter resonance.
+    detune: 0         // Detune factor for a second oscillator.
+  };
+
+  // Norrmalizes a timbre object by making a copy that has exactly
+  // the right set of timbre fields, defaulting when needed.
+  // A timbre can specify any of the fields of defaultTimbre; any
+  // unspecified fields are treated as they are set in defaultTimbre.
+  function makeTimbre(options, atop) {
+    if (!options) {
+      options = {};
     }
-    // For picking a default voice, looks for the first voice name.
-    function firstVoiceName() {
-      if (result.V) {
-        return result.V.split(/\s+/)[0];
-      } else {
-        return '';
-      }
+    if (typeof(options) == 'string') {
+      // Abbreviation: name a wave to get a default timbre for that wave.
+      options = { wave: options };
     }
-    function handleInformation(field, value) {
-      // The following headers are recognized and processed.
-      switch(field) {
-        case 'V':
-          // A V: header switches voices if in the body.
-          // If in the header, then it is just advisory.
-          if (context !== result) {
-            startVoiceContext(value.split(' ')[0]);
-          }
-          break;
-        case 'M':
-          parseMeter(value, context);
-          break;
-        case 'L':
-          parseUnitNote(value, context);
-          break;
-        case 'Q':
-          parseTempo(value, context);
-          break;
-      }
-      // All headers (including unrecognized ones) are
-      // just accumulated as properties. Repeated header
-      // lines are accumulated as multiline properties.
-      if (context.hasOwnProperty(field)) {
-        context[field] += '\n' + value;
-      } else {
-        context[field] = value;
-      }
-      // The K header is special: it should be the last one
-      // before the voices and notes begin.
-      if (field == 'K') {
-        key = keysig(value);
-        if (context === result) {
-          startVoiceContext(firstVoiceName());
-        }
-      }
-    }
-    // Parses a single line of ABC notes (i.e., not a header line).
-    //
-    // We process an ABC song stream by dividing it into tokens, each of
-    // which is a pitch, duration, or special decoration symbol; then
-    // we process each decoration individually, and we process each
-    // stem as a group using parseStem.
-    // The structure of a single ABC note is something like this:
-    //
-    // NOTE -> STACCATO? PITCH DURATION? TIE?
-    //
-    // I.e., it always has a pitch, and it is prefixed by some optional
-    // decorations such as a (.) staccato marking, and it is suffixed by
-    // an optional duration and an optional tie (-) marking.
-    //
-    // A stem is either a note or a bracketed series of notes, followed
-    // by duration and tie.
-    //
-    // STEM -> NOTE   OR    '[' NOTE * ']' DURAITON? TIE?
-    //
-    // Then a song is just a sequence of stems interleaved with other
-    // decorations such as dynamics markings and measure delimiters.
-    function parseABCNotes(str) {
-      var tokens = str.match(ABCtoken), parsed = null,
-          index = 0, dotted = 0, beatlet = null, t;
-      if (!tokens) {
-        return null;
-      }
-      while (index < tokens.length) {
-        // Ignore %comments and !markings!
-        if (/^[\s%]/.test(tokens[index])) { index++; continue; }
-        // Handle inline [X:...] information fields
-        if (/^\[[A-Za-z]:[^\]]*\]$/.test(tokens[index])) {
-          handleInformation(
-            tokens[index].substring(1, 2),
-            tokens[index].substring(3, tokens[index].length - 1).trim()
-          );
-          index++;
-          continue;
-        }
-        // Handled dotted notation abbreviations.
-        if (/</.test(tokens[index])) {
-          dotted = -tokens[index++].length;
-          continue;
-        }
-        if (/>/.test(tokens[index])) {
-          dotted = tokens[index++].length;
-          continue;
-        }
-        if (/^\(\d+(?::\d+)*/.test(tokens[index])) {
-          beatlet = parseBeatlet(tokens[index++]);
-          continue;
-        }
-        if (/^[!+].*[!+]$/.test(tokens[index])) {
-          parseDecoration(tokens[index++], accent);
-          continue;
-        }
-        if (/^.?".*"$/.test(tokens[index])) {
-          // Ignore double-quoted tokens (chords and general text annotations).
-          index++;
-          continue;
-        }
-        if (/^[()]$/.test(tokens[index])) {
-          if (tokens[index++] == '(') {
-            accent.slurred += 1;
-          } else {
-            accent.slurred -= 1;
-            if (accent.slurred <= 0) {
-              accent.slurred = 0;
-              if (context.stems && context.stems.length >= 1) {
-                // The last notes in a slur are not slurred.
-                slurStem(context.stems[context.stems.length - 1], false);
-              }
-            }
-          }
-          continue;
-        }
-        // Handle measure markings by clearing accidentals.
-        if (/\|/.test(tokens[index])) {
-          for (t in accent) {
-            if (t.length == 1) {
-              // Single-letter accent properties are note accidentals.
-              delete accent[t];
-            }
-          }
-          index++;
-          continue;
-        }
-        parsed = parseStem(tokens, index, key, accent);
-        // Skip unparsable bits
-        if (parsed === null) {
-          index++;
-          continue;
-        }
-        // Process a parsed stem.
-        if (beatlet) {
-          scaleStem(parsed.stem, beatlet.time);
-          beatlet.count -= 1;
-          if (!beatlet.count) {
-            beatlet = null;
-          }
-        }
-        // If syncopated with > or < notation, shift part of a beat
-        // between this stem and the previous one.
-        if (dotted && context.stems && context.stems.length) {
-          if (dotted > 0) {
-            t = (1 - Math.pow(0.5, dotted)) * parsed.stem.time;
-          } else {
-            t = (Math.pow(0.5, -dotted) - 1) *
-                context.stems[context.stems.length - 1].time;
-          }
-          syncopateStem(context.stems[context.stems.length - 1], t);
-          syncopateStem(parsed.stem, -t);
-        }
-        dotted = 0;
-        // Slur all the notes contained within a strem.
-        if (accent.slurred) {
-          slurStem(parsed.stem, true);
-        }
-        // Start a default voice if we're not in a voice yet.
-        if (context === result) {
-          startVoiceContext(firstVoiceName());
-        }
-        if (!('stems' in context)) { context.stems = []; }
-        // Add the stem to the sequence of stems for this voice.
-        context.stems.push(parsed.stem);
-        // Advance the parsing index since a stem is multiple tokens.
-        index = parsed.index;
-      }
-    }
-    // ABC files are parsed one line at a time.
-    for (j = 0; j < lines.length; ++j) {
-      // First, check to see if the line is a header line.
-      header = ABCheader.exec(lines[j]);
-      if (header) {
-        handleInformation(header[1], header[2]);
-      } else if (/^\s*(?:%.*)?$/.test(lines[j])) {
-        // Skip blank and comment lines.
-        continue;
-      } else {
-        // Parse the notes.
-        parseABCNotes(lines[j]);
-      }
-    }
-    var infer = ['unitnote', 'unitbeat', 'tempo'];
-    if (result.voice) {
-      out = [];
-      for (j in result.voice) {
-        if (result.voice[j].stems && result.voice[j].stems.length) {
-          // Calculate times for all the tied notes.  This happens at the end
-          // because in principle, the first note of a song could be tied all
-          // the way through to the last note.
-          processTies(result.voice[j].stems);
-          // Bring up inferred tempo values from voices if not specified
-          // in the header.
-          for (k = 0; k < infer.length; ++k) {
-            if (!(infer[k] in result) && (infer[k] in result.voice[j])) {
-              result[infer[k]] = result.voice[j][infer[k]];
-            }
-          }
-        } else {
-          out.push(j);
-        }
-      }
-      // Delete any voices that had no stems.
-      for (j = 0; j < out.length; ++j) {
-        delete result.voice[out[j]];
+    var result = {}, key,
+        wt = atop && atop.wavetable && atop.wavetable[options.wave];
+    for (key in defaultTimbre) {
+      if (options.hasOwnProperty(key)) {
+        result[key] = options[key];
+      } else if (wt && wt.defs && wt.defs.hasOwnProperty(key)) {
+        result[key] = wt.defs[key];
+      } else{
+        result[key] = defaultTimbre[key];
       }
     }
     return result;
   }
+
+  var whiteNoiseBuf = null;
+  function getWhiteNoiseBuf() {
+    if (whiteNoiseBuf == null) {
+      var ac = getAudioTop().ac,
+          bufferSize = 2 * ac.sampleRate,
+          whiteNoiseBuf = ac.createBuffer(1, bufferSize, ac.sampleRate),
+          output = whiteNoiseBuf.getChannelData(0);
+      for (var i = 0; i < bufferSize; i++) {
+        output[i] = Math.random() * 2 - 1;
+      }
+    }
+    return whiteNoiseBuf;
+  }
+
+  // This utility function creates an oscillator at the given frequency
+  // and the given wavename.  It supports lookups in a static wavetable,
+  // defined right below.
+  function makeOscillator(atop, wavename, freq) {
+    if (wavename == 'noise') {
+      var whiteNoise = atop.ac.createBufferSource();
+      whiteNoise.buffer = getWhiteNoiseBuf();
+      whiteNoise.loop = true;
+      return whiteNoise;
+    }
+    var wavetable = atop.wavetable, o = atop.ac.createOscillator(),
+        k, pwave, bwf, wf;
+    try {
+      if (wavetable.hasOwnProperty(wavename)) {
+        // Use a customized wavetable.
+        pwave = wavetable[wavename].wave;
+        if (wavetable[wavename].freq) {
+          bwf = 0;
+          // Look for a higher-frequency variant.
+          for (k in wavetable[wavename].freq) {
+            wf = Number(k);
+            if (freq > wf && wf > bwf) {
+              bwf = wf;
+              pwave = wavetable[wavename].freq[bwf];
+            }
+          }
+        }
+        if (!o.setPeriodicWave && o.setWaveTable) {
+          // The old API name: Safari 7 still uses this.
+          o.setWaveTable(pwave);
+        } else {
+          // The new API name.
+          o.setPeriodicWave(pwave);
+        }
+      } else {
+        o.type = wavename;
+      }
+    } catch(e) {
+      if (window.console) { window.console.log(e); }
+      // If unrecognized, just use square.
+      // TODO: support "noise" or other wave shapes.
+      o.type = 'square';
+    }
+    o.frequency.value = freq;
+    return o;
+  }
+
+  // Accepts either an ABC pitch or a midi number and converts to midi.
+  Instrument.pitchToMidi = function(n) {
+    if (typeof(n) == 'string') { return pitchToMidi(n); }
+    return n;
+  }
+
+  // Accepts either an ABC pitch or a midi number and converts to ABC pitch.
+  Instrument.midiToPitch = function(n) {
+    if (typeof(n) == 'number') { return midiToPitch(n); }
+    return n;
+  }
+
+  return Instrument;
+})();
+
+// Parses an ABC file to an object with the following structure:
+// {
+//   X: value from the X: lines in header (\n separated for multiple values)
+//   V: value from the V:myname lines that appear before K:
+//   (etc): for all the one-letter header-names.
+//   K: value from the K: lines in header.
+//   tempo: Q: line parsed as beatsecs
+//   timbre: ... I:timbre line as parsed by makeTimbre
+//   voice: {
+//     myname: { // voice with id "myname"
+//       V: value from the V:myname lines (from the body)
+//       stems: [...] as parsed by parseABCstems
+//    }
+//  }
+// }
+// ABC files are idiosyncratic to parse: the written specifications
+// do not necessarily reflect the defacto standard implemented by
+// ABC content on the web.  This implementation is designed to be
+// practical, working on content as it appears on the web, and only
+// using the written standard as a guideline.
+var ABCheader = /^([A-Za-z]):\s*(.*)$/;
+var ABCtoken = /(?:\[[A-Za-z]:[^\]]*\])|\s+|%[^\n]*|![^\s!:|\[\]]*!|\+[^+|!]*\+|[_<>@^]?"[^"]*"|\[|\]|>+|<+|(?:(?:\^+|_+|=|)[A-Ga-g](?:,+|'+|))|\(\d+(?::\d+){0,2}|\d*\/\d+|\d+\/?|\/+|[xzXZ]|\[?\|\]?|:?\|:?|::|./g;
+function parseABCFile(str) {
+  var lines = str.split('\n'),
+      result = {},
+      context = result, timbre,
+      j, k, header, stems, key = {}, accent = { slurred: 0 }, voiceid, out;
+  // ABC files are parsed one line at a time.
+  for (j = 0; j < lines.length; ++j) {
+    // First, check to see if the line is a header line.
+    header = ABCheader.exec(lines[j]);
+    if (header) {
+      handleInformation(header[1], header[2].trim());
+    } else if (/^\s*(?:%.*)?$/.test(lines[j])) {
+      // Skip blank and comment lines.
+      continue;
+    } else {
+      // Parse the notes.
+      parseABCNotes(lines[j]);
+    }
+  }
+  var infer = ['unitnote', 'unitbeat', 'tempo'];
+  if (result.voice) {
+    out = [];
+    for (j in result.voice) {
+      if (result.voice[j].stems && result.voice[j].stems.length) {
+        // Calculate times for all the tied notes.  This happens at the end
+        // because in principle, the first note of a song could be tied all
+        // the way through to the last note.
+        processTies(result.voice[j].stems);
+        // Bring up inferred tempo values from voices if not specified
+        // in the header.
+        for (k = 0; k < infer.length; ++k) {
+          if (!(infer[k] in result) && (infer[k] in result.voice[j])) {
+            result[infer[k]] = result.voice[j][infer[k]];
+          }
+        }
+        // Remove this internal state variable;
+        delete result.voice[j].accent;
+      } else {
+        out.push(j);
+      }
+    }
+    // Delete any voices that had no stems.
+    for (j = 0; j < out.length; ++j) {
+      delete result.voice[out[j]];
+    }
+  }
+  return result;
+
+
+  ////////////////////////////////////////////////////////////////////////
+  // Parsing helper functions below.
+  ////////////////////////////////////////////////////////////////////////
+
+
+  // Processes header fields such as V: voice, which may appear at the
+  // top of the ABC file, or in the ABC body in a [V:voice] directive.
+  function handleInformation(field, value) {
+    // The following headers are recognized and processed.
+    switch(field) {
+      case 'V':
+        // A V: header switches voices if in the body.
+        // If in the header, then it is just advisory.
+        if (context !== result) {
+          startVoiceContext(value.split(' ')[0]);
+        }
+        break;
+      case 'M':
+        parseMeter(value, context);
+        break;
+      case 'L':
+        parseUnitNote(value, context);
+        break;
+      case 'Q':
+        parseTempo(value, context);
+        break;
+    }
+    // All headers (including unrecognized ones) are
+    // just accumulated as properties. Repeated header
+    // lines are accumulated as multiline properties.
+    if (context.hasOwnProperty(field)) {
+      context[field] += '\n' + value;
+    } else {
+      context[field] = value;
+    }
+    // The K header is special: it should be the last one
+    // before the voices and notes begin.
+    if (field == 'K') {
+      key = keysig(value);
+      if (context === result) {
+        startVoiceContext(firstVoiceName());
+      }
+    }
+  }
+
+  // Shifts context to a voice with the given id given.  If no id
+  // given, then just sticks with the current voice.  If the current
+  // voice is unnamed and empty, renames the current voice.
+  function startVoiceContext(id) {
+    id = id || '';
+    if (!id && context !== result) {
+      return;
+    }
+    if (!result.voice) {
+      result.voice = {};
+    }
+    if (result.voice.hasOwnProperty(id)) {
+      // Resume a named voice.
+      context = result.voice[id];
+      accent = context.accent;
+    } else {
+      // Start a new voice.
+      context = { id: id, accent: { slurred: 0 } };
+      result.voice[id] = context;
+      accent = context.accent;
+    }
+  }
+
+  // For picking a default voice, looks for the first voice name.
+  function firstVoiceName() {
+    if (result.V) {
+      return result.V.split(/\s+/)[0];
+    } else {
+      return '';
+    }
+  }
+
+  // Parses a single line of ABC notes (i.e., not a header line).
+  //
+  // We process an ABC song stream by dividing it into tokens, each of
+  // which is a pitch, duration, or special decoration symbol; then
+  // we process each decoration individually, and we process each
+  // stem as a group using parseStem.
+  // The structure of a single ABC note is something like this:
+  //
+  // NOTE -> STACCATO? PITCH DURATION? TIE?
+  //
+  // I.e., it always has a pitch, and it is prefixed by some optional
+  // decorations such as a (.) staccato marking, and it is suffixed by
+  // an optional duration and an optional tie (-) marking.
+  //
+  // A stem is either a note or a bracketed series of notes, followed
+  // by duration and tie.
+  //
+  // STEM -> NOTE   OR    '[' NOTE * ']' DURAITON? TIE?
+  //
+  // Then a song is just a sequence of stems interleaved with other
+  // decorations such as dynamics markings and measure delimiters.
+  function parseABCNotes(str) {
+    var tokens = str.match(ABCtoken), parsed = null,
+        index = 0, dotted = 0, beatlet = null, t;
+    if (!tokens) {
+      return null;
+    }
+    while (index < tokens.length) {
+      // Ignore %comments and !markings!
+      if (/^[\s%]/.test(tokens[index])) { index++; continue; }
+      // Handle inline [X:...] information fields
+      if (/^\[[A-Za-z]:[^\]]*\]$/.test(tokens[index])) {
+        handleInformation(
+          tokens[index].substring(1, 2),
+          tokens[index].substring(3, tokens[index].length - 1).trim()
+        );
+        index++;
+        continue;
+      }
+      // Handled dotted notation abbreviations.
+      if (/</.test(tokens[index])) {
+        dotted = -tokens[index++].length;
+        continue;
+      }
+      if (/>/.test(tokens[index])) {
+        dotted = tokens[index++].length;
+        continue;
+      }
+      if (/^\(\d+(?::\d+)*/.test(tokens[index])) {
+        beatlet = parseBeatlet(tokens[index++]);
+        continue;
+      }
+      if (/^[!+].*[!+]$/.test(tokens[index])) {
+        parseDecoration(tokens[index++], accent);
+        continue;
+      }
+      if (/^.?".*"$/.test(tokens[index])) {
+        // Ignore double-quoted tokens (chords and general text annotations).
+        index++;
+        continue;
+      }
+      if (/^[()]$/.test(tokens[index])) {
+        if (tokens[index++] == '(') {
+          accent.slurred += 1;
+        } else {
+          accent.slurred -= 1;
+          if (accent.slurred <= 0) {
+            accent.slurred = 0;
+            if (context.stems && context.stems.length >= 1) {
+              // The last notes in a slur are not slurred.
+              slurStem(context.stems[context.stems.length - 1], false);
+            }
+          }
+        }
+        continue;
+      }
+      // Handle measure markings by clearing accidentals.
+      if (/\|/.test(tokens[index])) {
+        for (t in accent) {
+          if (t.length == 1) {
+            // Single-letter accent properties are note accidentals.
+            delete accent[t];
+          }
+        }
+        index++;
+        continue;
+      }
+      parsed = parseStem(tokens, index, key, accent);
+      // Skip unparsable bits
+      if (parsed === null) {
+        index++;
+        continue;
+      }
+      // Process a parsed stem.
+      if (beatlet) {
+        scaleStem(parsed.stem, beatlet.time);
+        beatlet.count -= 1;
+        if (!beatlet.count) {
+          beatlet = null;
+        }
+      }
+      // If syncopated with > or < notation, shift part of a beat
+      // between this stem and the previous one.
+      if (dotted && context.stems && context.stems.length) {
+        if (dotted > 0) {
+          t = (1 - Math.pow(0.5, dotted)) * parsed.stem.time;
+        } else {
+          t = (Math.pow(0.5, -dotted) - 1) *
+              context.stems[context.stems.length - 1].time;
+        }
+        syncopateStem(context.stems[context.stems.length - 1], t);
+        syncopateStem(parsed.stem, -t);
+      }
+      dotted = 0;
+      // Slur all the notes contained within a strem.
+      if (accent.slurred) {
+        slurStem(parsed.stem, true);
+      }
+      // Start a default voice if we're not in a voice yet.
+      if (context === result) {
+        startVoiceContext(firstVoiceName());
+      }
+      if (!('stems' in context)) { context.stems = []; }
+      // Add the stem to the sequence of stems for this voice.
+      context.stems.push(parsed.stem);
+      // Advance the parsing index since a stem is multiple tokens.
+      index = parsed.index;
+    }
+  }
+
   // Parse M: lines.  "3/4" is 3/4 time and "C" is 4/4 (common) time.
   function parseMeter(mline, beatinfo) {
     var d = /^C/.test(mline) ? 4/4 : durationToTime(mline);
@@ -1104,7 +1279,7 @@ var Instrument = (function() {
   // Supports the whole range of scale systems listed in the ABC spec.
   function keysig(keyname) {
     if (!keyname) { return {}; }
-    var key, sigcodes = {
+    var kkey, sigcodes = {
       // Major
       'c#':7, 'f#':6, 'b':5, 'e':4, 'a':3, 'd':2, 'g':1, 'c':0,
       'f':-1, 'bb':-2, 'eb':-3, 'ab':-4, 'db':-5, 'gb':-6, 'cb':-7,
@@ -1136,19 +1311,19 @@ var Instrument = (function() {
     var scale = k.match(/maj|min|mix|dor|phr|lyd|loc|m/);
     if (scale) {
       if (scale == 'maj') {
-        key = k.substr(0, scale.index);
+        kkey = k.substr(0, scale.index);
       } else if (scale == 'min') {
-        key = k.substr(0, scale.index + 1);
+        kkey = k.substr(0, scale.index + 1);
       } else {
-        key = k.substr(0, scale.index + scale[0].length);
+        kkey = k.substr(0, scale.index + scale[0].length);
       }
     } else {
-      key = /^[a-g][#b]?/.exec(k) || '';
+      kkey = /^[a-g][#b]?/.exec(k) || '';
     }
-    var result = accidentals(sigcodes[key]);
-    var extras = keyname.substr(key.length).match(/(_+|=|\^+)[a-g]/ig);
+    var result = accidentals(sigcodes[kkey]);
+    var extras = keyname.substr(kkey.length).match(/(_+|=|\^+)[a-g]/ig);
     if (extras) {
-      for (j = 0; j < extras.length; ++j) {
+      for (var j = 0; j < extras.length; ++j) {
         var note = extras[j].charAt(extras[j].length - 1).toUpperCase();
         if (extras[j].charAt(0) == '=') {
           delete result[note];
@@ -1391,47 +1566,6 @@ var Instrument = (function() {
     }
     return stripNatural(pitch);
   }
-  // Converts a midi note number to a frequency in Hz.
-  function midiToFrequency(midi) {
-    return 440 * Math.pow(2, (midi - 69) / 12);
-  }
-  // Some constants.
-  var noteNum =
-      {C:0,D:2,E:4,F:5,G:7,A:9,B:11,c:12,d:14,e:16,f:17,g:19,a:21,b:23};
-  var accSym =
-      { '^':1, '': 0, '=':0, '_':-1 };
-  var noteName =
-      ['C', '^C', 'D', '_E', 'E', 'F', '^F', 'G', '_A', 'A', '_B', 'B',
-       'c', '^c', 'd', '_e', 'e', 'f', '^f', 'g', '_a', 'a', '_b', 'b'];
-  // Converts a frequency in Hz to the closest midi number.
-  function frequencyToMidi(freq) {
-    return Math.round(69 + Math.log(freq / 440) * 12 / Math.LN2);
-  }
-  // Converts an ABC pitch (such as "^G,,") to a midi note number.
-  function pitchToMidi(pitch) {
-    var m = /^(\^+|_+|=|)([A-Ga-g])([,']*)$/.exec(pitch);
-    if (!m) { return null; }
-    var octave = m[3].replace(/,/g, '').length - m[3].replace(/'/g, '').length;
-    var semitone =
-        noteNum[m[2]] + accSym[m[1].charAt(0)] * m[1].length + 12 * octave;
-    return semitone + 60; // 60 = midi code middle "C".
-  }
-  // Converts a midi number to an ABC notation pitch.
-  function midiToPitch(midi) {
-    var index = ((midi - 72) % 12);
-    if (midi > 60 || index != 0) { index += 12; }
-    var octaves = Math.round((midi - index - 60) / 12),
-        result = noteName[index];
-    while (octaves != 0) {
-      result += octaves > 0 ? "'" : ",";
-      octaves += octaves > 0 ? -1 : 1;
-    }
-    return result;
-  }
-  // Converts an ABC pitch to a frequency in Hz.
-  function pitchToFrequency(pitch) {
-    return midiToFrequency(pitchToMidi(pitch));
-  }
   // Converts an ABC duration to a number (e.g., "/3"->0.333 or "11/2"->1.5).
   function durationToTime(duration) {
     var m = /^(\d*)(?:\/(\d*))?$|^(\/+)$/.exec(duration), n, d, i = 0, ilen;
@@ -1450,123 +1584,7 @@ var Instrument = (function() {
     }
     return i + (n / d);
   }
-
-  // The default sound is a square wave with a pretty quick decay to zero.
-  var defaultTimbre = Instrument.defaultTimbre = {
-    wave: 'square',   // Oscillator type.
-    gain: 0.1,        // Overall gain at maximum attack.
-    attack: 0.002,    // Attack time at the beginning of a tone.
-    decay: 0.4,       // Rate of exponential decay after attack.
-    decayfollow: 0,   // Amount of decay shortening for higher notes.
-    sustain: 0,       // Portion of gain to sustain indefinitely.
-    release: 0.1,     // Release time after a tone is done.
-    cutoff: 0,        // Low-pass filter cutoff frequency.
-    cutfollow: 0,     // Cutoff adjustment, a multiple of oscillator freq.
-    resonance: 0,     // Low-pass filter resonance.
-    detune: 0         // Detune factor for a second oscillator.
-  };
-
-  // Norrmalizes a timbre object by making a copy that has exactly
-  // the right set of timbre fields, defaulting when needed.
-  // A timbre can specify any of the fields of defaultTimbre; any
-  // unspecified fields are treated as they are set in defaultTimbre.
-  function makeTimbre(options, atop) {
-    if (!options) {
-      options = {};
-    }
-    if (typeof(options) == 'string') {
-      // Abbreviation: name a wave to get a default timbre for that wave.
-      options = { wave: options };
-    }
-    var result = {}, key,
-        wt = atop && atop.wavetable && atop.wavetable[options.wave];
-    for (key in defaultTimbre) {
-      if (options.hasOwnProperty(key)) {
-        result[key] = options[key];
-      } else if (wt && wt.defs && wt.defs.hasOwnProperty(key)) {
-        result[key] = wt.defs[key];
-      } else{
-        result[key] = defaultTimbre[key];
-      }
-    }
-    return result;
-  }
-
-  var whiteNoiseBuf = null;
-  function getWhiteNoiseBuf() {
-    if (whiteNoiseBuf == null) {
-      var ac = getAudioTop().ac,
-          bufferSize = 2 * ac.sampleRate,
-          whiteNoiseBuf = ac.createBuffer(1, bufferSize, ac.sampleRate),
-          output = whiteNoiseBuf.getChannelData(0);
-      for (var i = 0; i < bufferSize; i++) {
-        output[i] = Math.random() * 2 - 1;
-      }
-    }
-    return whiteNoiseBuf;
-  }
-
-  // This utility function creates an oscillator at the given frequency
-  // and the given wavename.  It supports lookups in a static wavetable,
-  // defined right below.
-  function makeOscillator(atop, wavename, freq) {
-    if (wavename == 'noise') {
-      var whiteNoise = atop.ac.createBufferSource();
-      whiteNoise.buffer = getWhiteNoiseBuf();
-      whiteNoise.loop = true;
-      return whiteNoise;
-    }
-    var wavetable = atop.wavetable, o = atop.ac.createOscillator(),
-        k, pwave, bwf, wf;
-    try {
-      if (wavetable.hasOwnProperty(wavename)) {
-        // Use a customized wavetable.
-        pwave = wavetable[wavename].wave;
-        if (wavetable[wavename].freq) {
-          bwf = 0;
-          // Look for a higher-frequency variant.
-          for (k in wavetable[wavename].freq) {
-            wf = Number(k);
-            if (freq > wf && wf > bwf) {
-              bwf = wf;
-              pwave = wavetable[wavename].freq[bwf];
-            }
-          }
-        }
-        if (!o.setPeriodicWave && o.setWaveTable) {
-          // The old API name: Safari 7 still uses this.
-          o.setWaveTable(pwave);
-        } else {
-          // The new API name.
-          o.setPeriodicWave(pwave);
-        }
-      } else {
-        o.type = wavename;
-      }
-    } catch(e) {
-      if (window.console) { window.console.log(e); }
-      // If unrecognized, just use square.
-      // TODO: support "noise" or other wave shapes.
-      o.type = 'square';
-    }
-    o.frequency.value = freq;
-    return o;
-  }
-
-  // Accepts either an ABC pitch or a midi number and converts to midi.
-  Instrument.pitchToMidi = function(n) {
-    if (typeof(n) == 'string') { return pitchToMidi(n); }
-    return n;
-  }
-
-  // Accepts either an ABC pitch or a midi number and converts to ABC pitch.
-  Instrument.midiToPitch = function(n) {
-    if (typeof(n) == 'number') { return midiToPitch(n); }
-    return n;
-  }
-
-  return Instrument;
-})();
+}
 
 // wavetable is a table of names for nonstandard waveforms.
 // The table maps names to objects that have wave: and freq:
@@ -1669,7 +1687,8 @@ function makeWavetable(ac) {
 
 // The package implementation. Right now, just one class.
 var impl = {
-  Instrument: Instrument
+  Instrument: Instrument,
+  parseABCFile: parseABCFile
 };
 
 if (module && module.exports) {
