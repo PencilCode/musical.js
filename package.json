@@ -1,6 +1,6 @@
 {
   "name": "musical.js",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "description": "An ABC music sequencer and synthesizer for WebAudio.",
   "main": "musical.js",
   "keywords": [
