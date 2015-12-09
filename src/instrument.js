@@ -29,6 +29,7 @@ var pitchToMidi = utils.pitchToMidi;
 var midiToFrequency = utils.midiToFrequency;
 var audioCurrentStartTime = utils.audioCurrentStartTime;
 var makeOscillator = utils.makeOscillator;
+var midiToPitch = utils.midiToPitch;
 var parseABCFile = require('./parser-abc');
 
 function Instrument(options) {

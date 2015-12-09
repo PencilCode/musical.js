@@ -84,7 +84,7 @@ module.exports.pitchToMidi = pitchToMidi = function(pitch) {
   return semitone + 60; // 60 = midi code middle "C".
 }
 // Converts a midi number to an ABC notation pitch.
-function midiToPitch(midi) {
+module.exports.midiToPitch = function(midi) {
   var index = ((midi - 72) % 12);
   if (midi > 60 || index != 0) { index += 12; }
   var octaves = Math.round((midi - index - 60) / 12),
