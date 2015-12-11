@@ -6,6 +6,361 @@
 <div id="qunit"></div>
 <script>
 module("Test of the parseABCFile function.");
+
+asyncTest("Parses two octaves", function() {
+  var result = parseABCFile(
+    "C ^C D ^D E F ^F G ^G A ^A B c ^c d ^d e f ^f g ^g a ^a b"
+  );
+  deepEqual(result,
+    {
+      "voice": {
+        "": {
+          "id": "",
+          "stems": [
+            {
+              "duration": "",
+              "notes": [
+                {
+                  "duration": "",
+                  "frequency": 261.6255653005986,
+                  "pitch": "C",
+                  "tie": false,
+                  "time": 1
+                }
+              ],
+              "staccato": false,
+              "time": 1
+            },
+            {
+              "duration": "",
+              "notes": [
+                {
+                  "duration": "",
+                  "frequency": 277.1826309768721,
+                  "pitch": "^C",
+                  "tie": false,
+                  "time": 1
+                }
+              ],
+              "staccato": false,
+              "time": 1
+            },
+            {
+              "duration": "",
+              "notes": [
+                {
+                  "duration": "",
+                  "frequency": 293.6647679174076,
+                  "pitch": "D",
+                  "tie": false,
+                  "time": 1
+                }
+              ],
+              "staccato": false,
+              "time": 1
+            },
+            {
+              "duration": "",
+              "notes": [
+                {
+                  "duration": "",
+                  "frequency": 311.12698372208087,
+                  "pitch": "^D",
+                  "tie": false,
+                  "time": 1
+                }
+              ],
+              "staccato": false,
+              "time": 1
+            },
+            {
+              "duration": "",
+              "notes": [
+                {
+                  "duration": "",
+                  "frequency": 329.6275569128699,
+                  "pitch": "E",
+                  "tie": false,
+                  "time": 1
+                }
+              ],
+              "staccato": false,
+              "time": 1
+            },
+            {
+              "duration": "",
+              "notes": [
+                {
+                  "duration": "",
+                  "frequency": 349.2282314330039,
+                  "pitch": "F",
+                  "tie": false,
+                  "time": 1
+                }
+              ],
+              "staccato": false,
+              "time": 1
+            },
+            {
+              "duration": "",
+              "notes": [
+                {
+                  "duration": "",
+                  "frequency": 369.9944227116344,
+                  "pitch": "^F",
+                  "tie": false,
+                  "time": 1
+                }
+              ],
+              "staccato": false,
+              "time": 1
+            },
+            {
+              "duration": "",
+              "notes": [
+                {
+                  "duration": "",
+                  "frequency": 391.99543598174927,
+                  "pitch": "G",
+                  "tie": false,
+                  "time": 1
+                }
+              ],
+              "staccato": false,
+              "time": 1
+            },
+            {
+              "duration": "",
+              "notes": [
+                {
+                  "duration": "",
+                  "frequency": 415.3046975799451,
+                  "pitch": "^G",
+                  "tie": false,
+                  "time": 1
+                }
+              ],
+              "staccato": false,
+              "time": 1
+            },
+            {
+              "duration": "",
+              "notes": [
+                {
+                  "duration": "",
+                  "frequency": 440,
+                  "pitch": "A",
+                  "tie": false,
+                  "time": 1
+                }
+              ],
+              "staccato": false,
+              "time": 1
+            },
+            {
+              "duration": "",
+              "notes": [
+                {
+                  "duration": "",
+                  "frequency": 466.1637615180899,
+                  "pitch": "^A",
+                  "tie": false,
+                  "time": 1
+                }
+              ],
+              "staccato": false,
+              "time": 1
+            },
+            {
+              "duration": "",
+              "notes": [
+                {
+                  "duration": "",
+                  "frequency": 493.8833012561241,
+                  "pitch": "B",
+                  "tie": false,
+                  "time": 1
+                }
+              ],
+              "staccato": false,
+              "time": 1
+            },
+
+            {
+              "duration": "",
+              "notes": [
+                {
+                  "duration": "",
+                  "frequency": 523.2511306011972,
+                  "pitch": "c",
+                  "tie": false,
+                  "time": 1
+                }
+              ],
+              "staccato": false,
+              "time": 1
+            },
+            {
+              "duration": "",
+              "notes": [
+                {
+                  "duration": "",
+                  "frequency": 554.3652619537442,
+                  "pitch": "^c",
+                  "tie": false,
+                  "time": 1
+                }
+              ],
+              "staccato": false,
+              "time": 1
+            },
+            {
+              "duration": "",
+              "notes": [
+                {
+                  "duration": "",
+                  "frequency": 587.3295358348151,
+                  "pitch": "d",
+                  "tie": false,
+                  "time": 1
+                }
+              ],
+              "staccato": false,
+              "time": 1
+            },
+            {
+              "duration": "",
+              "notes": [
+                {
+                  "duration": "",
+                  "frequency": 622.2539674441618,
+                  "pitch": "^d",
+                  "tie": false,
+                  "time": 1
+                }
+              ],
+              "staccato": false,
+              "time": 1
+            },
+            {
+              "duration": "",
+              "notes": [
+                {
+                  "duration": "",
+                  "frequency": 659.2551138257398,
+                  "pitch": "e",
+                  "tie": false,
+                  "time": 1
+                }
+              ],
+              "staccato": false,
+              "time": 1
+            },
+            {
+              "duration": "",
+              "notes": [
+                {
+                  "duration": "",
+                  "frequency": 698.4564628660078,
+                  "pitch": "f",
+                  "tie": false,
+                  "time": 1
+                }
+              ],
+              "staccato": false,
+              "time": 1
+            },
+            {
+              "duration": "",
+              "notes": [
+                {
+                  "duration": "",
+                  "frequency": 739.9888454232688,
+                  "pitch": "^f",
+                  "tie": false,
+                  "time": 1
+                }
+              ],
+              "staccato": false,
+              "time": 1
+            },
+            {
+              "duration": "",
+              "notes": [
+                {
+                  "duration": "",
+                  "frequency": 783.9908719634985,
+                  "pitch": "g",
+                  "tie": false,
+                  "time": 1
+                }
+              ],
+              "staccato": false,
+              "time": 1
+            },
+            {
+              "duration": "",
+              "notes": [
+                {
+                  "duration": "",
+                  "frequency": 830.6093951598903,
+                  "pitch": "^g",
+                  "tie": false,
+                  "time": 1
+                }
+              ],
+              "staccato": false,
+              "time": 1
+            },
+            {
+              "duration": "",
+              "notes": [
+                {
+                  "duration": "",
+                  "frequency": 880,
+                  "pitch": "a",
+                  "tie": false,
+                  "time": 1
+                }
+              ],
+              "staccato": false,
+              "time": 1
+            },
+            {
+              "duration": "",
+              "notes": [
+                {
+                  "duration": "",
+                  "frequency": 932.3275230361799,
+                  "pitch": "^a",
+                  "tie": false,
+                  "time": 1
+                }
+              ],
+              "staccato": false,
+              "time": 1
+            },
+            {
+              "duration": "",
+              "notes": [
+                {
+                  "duration": "",
+                  "frequency": 987.7666025122483,
+                  "pitch": "b",
+                  "tie": false,
+                  "time": 1
+                }
+              ],
+              "staccato": false,
+              "time": 1
+            }
+          ]
+        }
+      }
+    }
+  );
+  start();
+});
 asyncTest("Parses New York State of Mind.", function() {
   var result = parseABCFile(
     "X: 1\n" +
