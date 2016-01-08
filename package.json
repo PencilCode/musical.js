@@ -10,7 +10,7 @@
     "audio"
   ],
   "scripts": {
-    "build": "browserify src/index.js -o musical.js -s musicaljs",
+    "build": "browserify src/index.js -o musical.js -s musical",
     "test": "grunt"
   },
   "repository": {
