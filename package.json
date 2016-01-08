@@ -10,6 +10,7 @@
     "audio"
   ],
   "scripts": {
+    "build": "browserify src/index.js -o musical.js -s musicaljs",
     "test": "grunt"
   },
   "repository": {
@@ -23,6 +24,7 @@
   },
   "homepage": "https://github.com/PencilCode/music.js",
   "devDependencies": {
+    "browserify": "^12.0.1",
     "grunt": "latest",
     "grunt-bowercopy": "latest",
     "grunt-cli": "latest",
